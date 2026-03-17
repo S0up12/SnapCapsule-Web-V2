@@ -75,3 +75,15 @@ services:
       - ${HOST_RAW_MEDIA_DIR:-./data/raw}:/srv/snapcapsule/raw
       - ${HOST_THUMBNAIL_DIR:-./data/thumbnails}:/srv/snapcapsule/thumbnails
       - ${HOST_INGEST_DIR:-./data/ingest}:/srv/snapcapsule/ingest
+
+  snapcapsule-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: snapcapsule-web
+    depends_on:
+      snapcapsule-api:
+        condition: service_started
+    ports:
+      - ${SNAPCAPSULE_WEB_PORT:-3000}:80
+    restart: unless-stopped

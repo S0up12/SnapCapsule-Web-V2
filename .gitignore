@@ -1,5 +1,6 @@
 .env
 .venv/
+node_modules/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -7,6 +8,7 @@ __pycache__/
 .ruff_cache/
 dist/
 build/
+apps/web/dist/
 *.egg-info/
 data/
 local/

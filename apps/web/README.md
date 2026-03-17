@@ -1,5 +1,10 @@
 # SnapCapsule Web Frontend
 
-This directory is reserved for the future frontend application.
+React, Vite, and Tailwind frontend for the SnapCapsule media timeline.
 
-The backend and worker foundation is in place first so later phases can build a UI on top of a stable API, queue, and media-storage layer.
+Key pieces:
+
+- Virtualized timeline grid backed by `/api/timeline`
+- Infinite scrolling with TanStack Query
+- Lightweight thumbnail loading from `/api/asset/{id}/thumbnail`
+- Full-screen viewer with direct image loading and streamed video playback from `/api/asset/{id}/original`
