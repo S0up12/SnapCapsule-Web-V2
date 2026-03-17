@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from apps.api.app.api.routes.assets import router as assets_router
 from apps.api.app.api.routes.health import router as health_router
+from apps.api.app.api.routes.ingestion import router as ingestion_router
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.db import init_database
 
@@ -31,7 +33,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(assets_router)
 app.include_router(health_router)
+app.include_router(ingestion_router)
 
 
 @app.get("/")

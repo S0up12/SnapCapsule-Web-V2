@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     celery_result_backend: str | None = None
     raw_media_dir: str = "/srv/snapcapsule/raw"
     thumbnail_dir: str = "/srv/snapcapsule/thumbnails"
+    ingest_root_dir: str = "/srv/snapcapsule/ingest"
     allowed_origins: str = "http://localhost:3000,http://localhost:5173"
 
     model_config = SettingsConfigDict(
@@ -34,9 +35,25 @@ class Settings(BaseSettings):
     def result_backend(self) -> str:
         return self.celery_result_backend or self.redis_url
 
+    @property
+    def ingest_upload_dir(self) -> Path:
+        return Path(self.ingest_root_dir) / "uploads"
+
+    @property
+    def ingest_workspace_dir(self) -> Path:
+        return Path(self.ingest_root_dir) / "workspaces"
+
+    @property
+    def ingest_archive_dir(self) -> Path:
+        return Path(self.ingest_root_dir) / "archives"
+
     def ensure_storage_dirs(self) -> None:
         Path(self.raw_media_dir).mkdir(parents=True, exist_ok=True)
         Path(self.thumbnail_dir).mkdir(parents=True, exist_ok=True)
+        Path(self.ingest_root_dir).mkdir(parents=True, exist_ok=True)
+        self.ingest_upload_dir.mkdir(parents=True, exist_ok=True)
+        self.ingest_workspace_dir.mkdir(parents=True, exist_ok=True)
+        self.ingest_archive_dir.mkdir(parents=True, exist_ok=True)
 
 
 @lru_cache

@@ -44,12 +44,14 @@ services:
       SNAPCAPSULE_ALLOWED_ORIGINS: ${SNAPCAPSULE_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
       SNAPCAPSULE_RAW_MEDIA_DIR: /srv/snapcapsule/raw
       SNAPCAPSULE_THUMBNAIL_DIR: /srv/snapcapsule/thumbnails
+      SNAPCAPSULE_INGEST_ROOT_DIR: /srv/snapcapsule/ingest
     ports:
       - ${SNAPCAPSULE_API_PORT:-8000}:8000
     restart: unless-stopped
     volumes:
       - ${HOST_RAW_MEDIA_DIR:-./data/raw}:/srv/snapcapsule/raw
       - ${HOST_THUMBNAIL_DIR:-./data/thumbnails}:/srv/snapcapsule/thumbnails
+      - ${HOST_INGEST_DIR:-./data/ingest}:/srv/snapcapsule/ingest
 
   snapcapsule-worker:
     build:
@@ -66,8 +68,10 @@ services:
       SNAPCAPSULE_REDIS_URL: redis://snapcapsule-redis:6379/0
       SNAPCAPSULE_RAW_MEDIA_DIR: /srv/snapcapsule/raw
       SNAPCAPSULE_THUMBNAIL_DIR: /srv/snapcapsule/thumbnails
+      SNAPCAPSULE_INGEST_ROOT_DIR: /srv/snapcapsule/ingest
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
     restart: unless-stopped
     volumes:
       - ${HOST_RAW_MEDIA_DIR:-./data/raw}:/srv/snapcapsule/raw
       - ${HOST_THUMBNAIL_DIR:-./data/thumbnails}:/srv/snapcapsule/thumbnails
+      - ${HOST_INGEST_DIR:-./data/ingest}:/srv/snapcapsule/ingest

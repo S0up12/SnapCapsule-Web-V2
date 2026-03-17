@@ -15,7 +15,9 @@ def create_celery_app() -> Celery:
     app.conf.update(
         task_default_queue="media",
         task_routes={
+            "snapcapsule_core.tasks.ingestion.extract_and_parse": {"queue": "ingest"},
             "snapcapsule_core.tasks.media.generate_asset_derivatives": {"queue": "media"},
+            "snapcapsule_core.tasks.media.process_asset_media": {"queue": "media"},
             "snapcapsule_core.tasks.media.ping_worker": {"queue": "media"},
         },
         task_serializer="json",

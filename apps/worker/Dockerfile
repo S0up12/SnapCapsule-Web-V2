@@ -6,6 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml README.md ./
 COPY apps ./apps
 COPY packages ./packages
@@ -13,4 +17,4 @@ COPY packages ./packages
 RUN pip install --upgrade pip \
     && pip install .
 
-CMD ["sh", "-c", "celery -A apps.worker.app.worker:celery_app worker --loglevel=INFO --concurrency=${WORKER_CONCURRENCY:-2}"]
+CMD ["sh", "-c", "celery -A apps.worker.app.worker:celery_app worker --loglevel=INFO --concurrency=${WORKER_CONCURRENCY:-2} --queues=ingest,media"]

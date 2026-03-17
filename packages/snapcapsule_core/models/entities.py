@@ -21,7 +21,14 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from snapcapsule_core.models.base import Base, TimestampMixin
-from snapcapsule_core.models.enums import AssetSource, ChatMessageSource, MediaType, StoryType
+from snapcapsule_core.models.enums import (
+    AssetSource,
+    ChatMessageSource,
+    IngestionJobStatus,
+    IngestionSourceKind,
+    MediaType,
+    StoryType,
+)
 
 chat_message_assets = Table(
     "chat_message_assets",
@@ -62,6 +69,36 @@ class Asset(TimestampMixin, Base):
     )
     memory_items: Mapped[list["MemoryItem"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
     story_items: Mapped[list["StoryItem"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
+
+
+class IngestionJob(TimestampMixin, Base):
+    __tablename__ = "ingestion_jobs"
+    __table_args__ = (
+        Index("ix_ingestion_jobs_status_created_at", "status", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_kind: Mapped[IngestionSourceKind] = mapped_column(
+        Enum(IngestionSourceKind, name="ingestion_source_kind"),
+        nullable=False,
+    )
+    source_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_path: Mapped[str] = mapped_column(Text, nullable=False)
+    workspace_path: Mapped[str | None] = mapped_column(Text)
+    celery_task_id: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[IngestionJobStatus] = mapped_column(
+        Enum(IngestionJobStatus, name="ingestion_job_status"),
+        default=IngestionJobStatus.QUEUED,
+        nullable=False,
+    )
+    detail_message: Mapped[str | None] = mapped_column(String(255))
+    progress_percent: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_assets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    processed_assets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failed_assets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    raw_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
 
 class ChatThread(TimestampMixin, Base):

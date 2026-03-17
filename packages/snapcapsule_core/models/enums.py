@@ -24,3 +24,17 @@ class StoryType(str, Enum):
     PUBLIC = "public"
     SAVED = "saved"
     UNKNOWN = "unknown"
+
+
+class IngestionSourceKind(str, Enum):
+    UPLOAD = "upload"
+    DIRECTORY = "directory"
+
+
+class IngestionJobStatus(str, Enum):
+    QUEUED = "queued"
+    EXTRACTING = "extracting"
+    PARSING = "parsing"
+    PROCESSING_MEDIA = "processing_media"
+    COMPLETED = "completed"
+    FAILED = "failed"
