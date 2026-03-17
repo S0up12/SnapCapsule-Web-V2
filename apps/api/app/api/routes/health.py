@@ -2,14 +2,22 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from apps.api.app.api.schemas import HealthResponse
 from snapcapsule_core.db import SessionLocal
 from snapcapsule_core.queue import get_redis_client
 
-router = APIRouter(tags=["health"])
+router = APIRouter()
 
 
-@router.get("/health")
+@router.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=["System"],
+    summary="Check API dependencies",
+    responses={503: {"model": HealthResponse, "description": "One or more backing services are unavailable."}},
+)
 def healthcheck() -> dict[str, object]:
+    """Check PostgreSQL and Redis connectivity so the UI and local tooling can detect degraded startup states."""
     database_status = "ok"
     redis_status = "ok"
     database_error = None

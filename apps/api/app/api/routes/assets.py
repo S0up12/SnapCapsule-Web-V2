@@ -9,22 +9,30 @@ from typing import Iterator
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
+from apps.api.app.api.schemas import ErrorResponse, TimelinePageResponse
 from snapcapsule_core.db import SessionLocal
 from snapcapsule_core.models.enums import MediaType
 from snapcapsule_core.services.asset_queries import count_timeline_assets, get_asset_file_record, list_timeline_assets
 
-router = APIRouter(prefix="/api", tags=["assets"])
+router = APIRouter(prefix="/api")
 
 _RANGE_RE = re.compile(r"bytes=(?P<start>\d*)-(?P<end>\d*)$")
 _DEFAULT_PAGE_SIZE = 100
 _MAX_PAGE_SIZE = 100
 
 
-@router.get("/timeline")
+@router.get(
+    "/timeline",
+    response_model=TimelinePageResponse,
+    tags=["Timeline"],
+    summary="List timeline assets",
+    responses={200: {"description": "Paginated list of assets ordered newest first."}},
+)
 def get_timeline(
     limit: int = Query(_DEFAULT_PAGE_SIZE, ge=1, le=_MAX_PAGE_SIZE),
     offset: int = Query(0, ge=0),
-) -> dict[str, object]:
+) -> TimelinePageResponse:
+    """Return a paginated slice of processed assets for infinite-scroll gallery views."""
     with SessionLocal() as session:
         items = list_timeline_assets(session, limit=limit, offset=offset)
         total = count_timeline_assets(session)
@@ -45,8 +53,25 @@ def get_timeline(
     }
 
 
-@router.get("/asset/{asset_id}/thumbnail")
+@router.get(
+    "/asset/{asset_id}/thumbnail",
+    response_class=FileResponse,
+    tags=["Media Server"],
+    summary="Serve an asset thumbnail",
+    responses={
+        200: {
+            "description": "Small web-optimized thumbnail image.",
+            "content": {
+                "image/jpeg": {},
+                "image/png": {},
+                "image/webp": {},
+            },
+        },
+        404: {"model": ErrorResponse, "description": "Asset or thumbnail file was not found."},
+    },
+)
 def get_asset_thumbnail(asset_id: uuid.UUID) -> FileResponse:
+    """Serve the compressed thumbnail file used by the virtualized gallery grid."""
     with SessionLocal() as session:
         asset = get_asset_file_record(session, asset_id)
 
@@ -64,8 +89,31 @@ def get_asset_thumbnail(asset_id: uuid.UUID) -> FileResponse:
     )
 
 
-@router.get("/asset/{asset_id}/original")
+@router.get(
+    "/asset/{asset_id}/original",
+    response_class=FileResponse,
+    tags=["Media Server"],
+    summary="Serve original media",
+    responses={
+        200: {
+            "description": "Original image or full file response when no range header is provided.",
+            "content": {
+                "image/jpeg": {},
+                "image/png": {},
+                "video/mp4": {},
+                "application/octet-stream": {},
+            },
+        },
+        206: {
+            "description": "Partial content response for ranged video playback.",
+            "content": {"video/mp4": {}, "video/webm": {}, "video/quicktime": {}},
+        },
+        404: {"model": ErrorResponse, "description": "Asset or original media file was not found."},
+        416: {"description": "Requested byte range was invalid for the media file."},
+    },
+)
 def get_asset_original(asset_id: uuid.UUID, request: Request):
+    """Serve the original image or video file, including HTTP range support for video scrubbing."""
     with SessionLocal() as session:
         asset = get_asset_file_record(session, asset_id)
 
