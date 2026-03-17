@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.app.api.routes.assets import router as assets_router
+from apps.api.app.api.routes.chats import router as chats_router
 from apps.api.app.api.routes.health import router as health_router
 from apps.api.app.api.routes.ingestion import router as ingestion_router
 from apps.api.app.api.routes.settings import router as settings_router
@@ -25,6 +26,10 @@ OPENAPI_TAGS = [
     {
         "name": "Timeline",
         "description": "Lightweight, paginated asset listings optimized for virtualized gallery views.",
+    },
+    {
+        "name": "Chats",
+        "description": "Conversation browsing and grouped message timelines for Snapchat chats and saved media.",
     },
     {
         "name": "Dashboard",
@@ -70,6 +75,7 @@ app.add_middleware(
 )
 
 app.include_router(assets_router)
+app.include_router(chats_router)
 app.include_router(health_router)
 app.include_router(ingestion_router)
 app.include_router(settings_router)
