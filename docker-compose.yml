@@ -1,0 +1,73 @@
+name: snapcapsule-web
+
+services:
+  snapcapsule-db:
+    image: postgres:16-alpine
+    container_name: snapcapsule-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-snapcapsule}
+      POSTGRES_USER: ${POSTGRES_USER:-snapcapsule}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-snapcapsule}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-snapcapsule} -d ${POSTGRES_DB:-snapcapsule}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    volumes:
+      - ${HOST_POSTGRES_DATA_DIR:-./data/postgres}:/var/lib/postgresql/data
+
+  snapcapsule-redis:
+    image: redis:7-alpine
+    container_name: snapcapsule-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  snapcapsule-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: snapcapsule-api
+    depends_on:
+      snapcapsule-db:
+        condition: service_healthy
+      snapcapsule-redis:
+        condition: service_healthy
+    environment:
+      SNAPCAPSULE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-snapcapsule}:${POSTGRES_PASSWORD:-snapcapsule}@snapcapsule-db:5432/${POSTGRES_DB:-snapcapsule}
+      SNAPCAPSULE_REDIS_URL: redis://snapcapsule-redis:6379/0
+      SNAPCAPSULE_ALLOWED_ORIGINS: ${SNAPCAPSULE_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      SNAPCAPSULE_RAW_MEDIA_DIR: /srv/snapcapsule/raw
+      SNAPCAPSULE_THUMBNAIL_DIR: /srv/snapcapsule/thumbnails
+    ports:
+      - ${SNAPCAPSULE_API_PORT:-8000}:8000
+    restart: unless-stopped
+    volumes:
+      - ${HOST_RAW_MEDIA_DIR:-./data/raw}:/srv/snapcapsule/raw
+      - ${HOST_THUMBNAIL_DIR:-./data/thumbnails}:/srv/snapcapsule/thumbnails
+
+  snapcapsule-worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    container_name: snapcapsule-worker
+    depends_on:
+      snapcapsule-db:
+        condition: service_healthy
+      snapcapsule-redis:
+        condition: service_healthy
+    environment:
+      SNAPCAPSULE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-snapcapsule}:${POSTGRES_PASSWORD:-snapcapsule}@snapcapsule-db:5432/${POSTGRES_DB:-snapcapsule}
+      SNAPCAPSULE_REDIS_URL: redis://snapcapsule-redis:6379/0
+      SNAPCAPSULE_RAW_MEDIA_DIR: /srv/snapcapsule/raw
+      SNAPCAPSULE_THUMBNAIL_DIR: /srv/snapcapsule/thumbnails
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    restart: unless-stopped
+    volumes:
+      - ${HOST_RAW_MEDIA_DIR:-./data/raw}:/srv/snapcapsule/raw
+      - ${HOST_THUMBNAIL_DIR:-./data/thumbnails}:/srv/snapcapsule/thumbnails
