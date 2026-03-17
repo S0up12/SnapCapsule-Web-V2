@@ -9,10 +9,26 @@ from typing import Iterator
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
-from apps.api.app.api.schemas import DashboardStatsResponse, ErrorResponse, TimelinePageResponse
-from snapcapsule_core.db import SessionLocal
+from apps.api.app.api.schemas import (
+    AssetMutationResponse,
+    AssetTagsUpdateRequest,
+    DashboardStatsResponse,
+    ErrorResponse,
+    TimelinePageResponse,
+    TimelineTagsResponse,
+)
+from snapcapsule_core.db import SessionLocal, session_scope
 from snapcapsule_core.models.enums import MediaType
-from snapcapsule_core.services.asset_queries import count_timeline_assets, get_asset_file_record, get_dashboard_stats, list_timeline_assets
+from snapcapsule_core.services.asset_queries import (
+    TimelineFilters,
+    get_asset_file_record,
+    get_dashboard_stats,
+    get_timeline_summary,
+    list_available_tags,
+    list_timeline_assets,
+    toggle_asset_favorite,
+    update_asset_tags,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -51,11 +67,22 @@ def get_stats() -> DashboardStatsResponse:
 def get_timeline(
     limit: int = Query(_DEFAULT_PAGE_SIZE, ge=1, le=_MAX_PAGE_SIZE),
     offset: int = Query(0, ge=0),
+    sort: str = Query("desc", pattern="^(asc|desc)$"),
+    media_type: str = Query("all", pattern="^(all|image|video)$"),
+    favorite: bool = Query(False),
+    tags: list[str] | None = Query(default=None),
 ) -> TimelinePageResponse:
     """Return a paginated slice of processed assets for infinite-scroll gallery views."""
+    filters = TimelineFilters(
+        sort_direction=sort,
+        media_type=MediaType(media_type) if media_type in {"image", "video"} else None,
+        favorite_only=favorite,
+        tags=tuple(tag.strip() for tag in (tags or []) if tag.strip()),
+    )
+
     with SessionLocal() as session:
-        items = list_timeline_assets(session, limit=limit, offset=offset)
-        total = count_timeline_assets(session)
+        items = list_timeline_assets(session, limit=limit, offset=offset, filters=filters)
+        summary = get_timeline_summary(session, filters)
 
     return {
         "items": [
@@ -63,14 +90,67 @@ def get_timeline(
                 "id": str(item.id),
                 "taken_at": item.taken_at.isoformat() if item.taken_at else None,
                 "media_type": item.media_type.value,
+                "is_favorite": item.is_favorite,
+                "tags": list(item.tags),
             }
             for item in items
         ],
         "limit": limit,
         "offset": offset,
-        "total": total,
-        "has_more": offset + len(items) < total,
+        "total": summary.total_assets,
+        "has_more": offset + len(items) < summary.total_assets,
+        "summary": {
+            "total_assets": summary.total_assets,
+            "total_photos": summary.total_photos,
+            "total_videos": summary.total_videos,
+        },
     }
+
+
+@router.get(
+    "/timeline/tags",
+    response_model=TimelineTagsResponse,
+    tags=["Timeline"],
+    summary="List available timeline tags",
+)
+def get_timeline_tags() -> TimelineTagsResponse:
+    """Return distinct asset tags so the memories filter bar can offer a data-driven tag dropdown."""
+    with SessionLocal() as session:
+        return TimelineTagsResponse(tags=list_available_tags(session))
+
+
+@router.post(
+    "/asset/{asset_id}/favorite",
+    response_model=AssetMutationResponse,
+    tags=["Timeline"],
+    summary="Toggle asset favorite status",
+    responses={404: {"model": ErrorResponse, "description": "Asset not found."}},
+)
+def post_asset_favorite(asset_id: uuid.UUID) -> AssetMutationResponse:
+    """Toggle the favorite flag for a single asset used by the memories context menu and hover indicators."""
+    with session_scope() as session:
+        updated = toggle_asset_favorite(session, asset_id)
+        if updated is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
+
+    return AssetMutationResponse(id=updated.id, is_favorite=updated.is_favorite, tags=list(updated.tags))
+
+
+@router.post(
+    "/asset/{asset_id}/tags",
+    response_model=AssetMutationResponse,
+    tags=["Timeline"],
+    summary="Update asset tags",
+    responses={404: {"model": ErrorResponse, "description": "Asset not found."}},
+)
+def post_asset_tags(asset_id: uuid.UUID, payload: AssetTagsUpdateRequest) -> AssetMutationResponse:
+    """Replace the text tag list for a single asset so memories can be filtered and organized by custom labels."""
+    with session_scope() as session:
+        updated = update_asset_tags(session, asset_id, payload.tags)
+        if updated is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
+
+    return AssetMutationResponse(id=updated.id, is_favorite=updated.is_favorite, tags=list(updated.tags))
 
 
 @router.get(

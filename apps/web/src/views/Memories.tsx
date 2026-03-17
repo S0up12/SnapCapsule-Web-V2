@@ -1,106 +1,135 @@
-import { startTransition, useMemo, useState } from "react";
-import { Database, Film, Gauge, Images, LoaderCircle } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, LoaderCircle, SlidersHorizontal, Tags } from "lucide-react";
+import { type ReactNode, startTransition, useMemo, useState } from "react";
 
 import Lightbox from "../components/Lightbox";
 import VirtualTimelineGrid from "../components/VirtualTimelineGrid";
-import { useTimeline } from "../hooks/useTimeline";
+import TagEditorModal from "../components/memories/TagEditorModal";
+import { useToggleFavorite, useUpdateAssetTags } from "../hooks/useAssetActions";
+import {
+  useTimeline,
+  useTimelineTags,
+  type TimelineAsset,
+  type TimelineFilter,
+  type TimelineSort,
+} from "../hooks/useTimeline";
 
-function StatCard({
+function ControlSelect({
   label,
-  value,
   icon: Icon,
-  accentClassName,
+  value,
+  onChange,
+  children,
 }: {
   label: string;
-  value: string | number;
-  icon: typeof Images;
-  accentClassName: string;
+  icon: typeof SlidersHorizontal;
+  value: string;
+  onChange: (value: string) => void;
+  children: ReactNode;
 }) {
   return (
-    <article className="rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-5 backdrop-blur">
-      <div className={`inline-flex rounded-2xl p-3 ${accentClassName}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</p>
-      <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
-    </article>
+    <label className="inline-flex items-center gap-2 rounded-[1rem] border border-slate-200/80 bg-white/90 px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-white/10 dark:bg-slate-950/65 dark:text-slate-200">
+      <Icon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+      <span className="sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="bg-transparent pr-6 text-sm font-medium outline-none"
+      >
+        {children}
+      </select>
+    </label>
   );
 }
 
 export default function Memories() {
+  const [sort, setSort] = useState<TimelineSort>("desc");
+  const [filter, setFilter] = useState<TimelineFilter>("all");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [tagEditorAsset, setTagEditorAsset] = useState<TimelineAsset | null>(null);
+
+  const timelineQuery = useTimeline({
+    sort,
+    filter,
+    tag: activeTag,
+  });
+  const timelineTagsQuery = useTimelineTags();
+  const toggleFavorite = useToggleFavorite();
+  const updateAssetTags = useUpdateAssetTags();
+
   const {
     assets,
     total,
+    summary,
     isLoading,
     isError,
     error,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-  } = useTimeline();
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  } = timelineQuery;
 
   const selectedAsset = selectedIndex !== null ? assets[selectedIndex] : null;
-  const videoCount = useMemo(
-    () => assets.filter((asset) => asset.media_type === "video").length,
-    [assets],
+
+  const summaryText = useMemo(
+    () =>
+      `${summary.total_assets} Total Memories (${summary.total_photos} Photos, ${summary.total_videos} Videos)`,
+    [summary.total_assets, summary.total_photos, summary.total_videos],
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6">
-      <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,_rgba(8,16,28,0.98),_rgba(8,24,40,0.88),_rgba(4,9,16,0.98))] shadow-2xl shadow-black/30">
-        <div className="grid gap-8 px-6 py-8 md:px-8 xl:grid-cols-[1.15fr_0.85fr] xl:px-10">
-          <div className="space-y-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.34em] text-cyan-300/70">Memories</p>
-            <div className="space-y-4">
-              <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                Memories
-              </h1>
-              <p className="max-w-2xl text-sm leading-7 text-slate-300">
-                The archive grid streams timeline pages in batches, groups them by date, and only renders the tiles that
-                are actually on screen.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
-            <StatCard
-              label="Loaded"
-              value={isLoading ? "..." : assets.length}
-              icon={Images}
-              accentClassName="bg-cyan-400/15 text-cyan-200"
-            />
-            <StatCard
-              label="Video Items"
-              value={isLoading ? "..." : videoCount}
-              icon={Film}
-              accentClassName="bg-amber-300/15 text-amber-100"
-            />
-            <StatCard
-              label="Archive Total"
-              value={isLoading ? "..." : total}
-              icon={Database}
-              accentClassName="bg-emerald-400/15 text-emerald-200"
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="flex items-center justify-between rounded-[1.6rem] border border-white/10 bg-slate-950/55 px-5 py-4 shadow-xl shadow-black/20">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Render Strategy</p>
-          <p className="mt-2 text-sm text-slate-300">
-            Virtual rows, sticky date markers, lazy thumbnails, and range-based video playback.
+    <div className="mx-auto flex w-full max-w-[1740px] flex-col gap-5">
+      <section className="flex flex-col gap-4 rounded-[1.6rem] border border-slate-200/80 bg-white/82 px-5 py-4 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.045] md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-700/75 dark:text-cyan-300/70">
+            Memories
           </p>
+          <h2 className="mt-2 truncate text-lg font-semibold tracking-tight text-slate-950 dark:text-white md:text-xl">
+            {isLoading ? "Loading memories..." : summaryText}
+          </h2>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/[0.08] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100">
-          <Gauge className="h-4 w-4" />
-          Performance First
+
+        <div className="flex flex-wrap items-center gap-2">
+          <ControlSelect
+            label="Sort"
+            icon={sort === "desc" ? ArrowDownWideNarrow : ArrowUpWideNarrow}
+            value={sort}
+            onChange={(value) => setSort(value as TimelineSort)}
+          >
+            <option value="desc">Newest First</option>
+            <option value="asc">Oldest First</option>
+          </ControlSelect>
+
+          <ControlSelect
+            label="Filter"
+            icon={SlidersHorizontal}
+            value={filter}
+            onChange={(value) => setFilter(value as TimelineFilter)}
+          >
+            <option value="all">All</option>
+            <option value="favorites">Favorites</option>
+            <option value="photos">Photos Only</option>
+            <option value="videos">Videos Only</option>
+          </ControlSelect>
+
+          <ControlSelect
+            label="Tag"
+            icon={Tags}
+            value={activeTag ?? ""}
+            onChange={(value) => setActiveTag(value || null)}
+          >
+            <option value="">All Tags</option>
+            {(timelineTagsQuery.data ?? []).map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </ControlSelect>
         </div>
       </section>
 
       {isError ? (
-        <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+        <div className="rounded-[1.25rem] border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
           {error instanceof Error ? error.message : "Failed to load memories."}
         </div>
       ) : null}
@@ -118,13 +147,19 @@ export default function Memories() {
               setSelectedIndex(index);
             });
           }}
+          onToggleFavorite={async (asset) => {
+            await toggleFavorite.mutateAsync(asset.id);
+          }}
+          onEditTags={(asset) => {
+            setTagEditorAsset(asset);
+          }}
         />
       ) : null}
 
-      {isFetchingNextPage && assets.length > 0 ? (
-        <div className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/90 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 shadow-lg shadow-black/30 backdrop-blur">
+      {(isFetchingNextPage || toggleFavorite.isPending || updateAssetTags.isPending) && assets.length > 0 ? (
+        <div className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/92 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur dark:border-white/10 dark:bg-slate-950/90 dark:text-slate-200 dark:shadow-black/30">
           <LoaderCircle className="h-4 w-4 animate-spin" />
-          Fetching more assets
+          {isFetchingNextPage ? "Fetching more assets" : "Saving changes"}
         </div>
       ) : null}
 
@@ -140,6 +175,17 @@ export default function Memories() {
             startTransition(() => {
               setSelectedIndex(nextIndex);
             });
+          }}
+        />
+      ) : null}
+
+      {tagEditorAsset ? (
+        <TagEditorModal
+          assetId={tagEditorAsset.id}
+          initialTags={tagEditorAsset.tags}
+          onClose={() => setTagEditorAsset(null)}
+          onSave={async (tags) => {
+            await updateAssetTags.mutateAsync({ assetId: tagEditorAsset.id, tags });
           }}
         />
       ) : null}

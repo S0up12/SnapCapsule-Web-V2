@@ -63,6 +63,8 @@ class AssetSummary(BaseModel):
                 "id": "eba274cb-6509-40f6-9a9f-df634f0f2894",
                 "taken_at": "2024-01-03T00:00:00+00:00",
                 "media_type": "video",
+                "is_favorite": True,
+                "tags": ["vacation", "beach"],
             }
         }
     )
@@ -74,6 +76,14 @@ class AssetSummary(BaseModel):
         examples=["2024-01-03T00:00:00+00:00"],
     )
     media_type: MediaType = Field(..., description="Normalized media type returned by the API.")
+    is_favorite: bool = Field(..., description="Whether the asset is currently marked as a favorite.")
+    tags: list[str] = Field(..., description="User-defined text tags associated with the asset.")
+
+
+class TimelineSummary(BaseModel):
+    total_assets: int = Field(..., description="Total number of assets matching the active filters.")
+    total_photos: int = Field(..., description="Number of photo assets matching the active filters.")
+    total_videos: int = Field(..., description="Number of video assets matching the active filters.")
 
 
 class TimelinePageResponse(BaseModel):
@@ -85,12 +95,19 @@ class TimelinePageResponse(BaseModel):
                         "id": "eba274cb-6509-40f6-9a9f-df634f0f2894",
                         "taken_at": "2024-01-03T00:00:00+00:00",
                         "media_type": "video",
+                        "is_favorite": True,
+                        "tags": ["vacation", "beach"],
                     }
                 ],
                 "limit": 100,
                 "offset": 0,
                 "total": 12453,
                 "has_more": True,
+                "summary": {
+                    "total_assets": 12453,
+                    "total_photos": 10984,
+                    "total_videos": 1469,
+                },
             }
         }
     )
@@ -100,6 +117,7 @@ class TimelinePageResponse(BaseModel):
     offset: int = Field(..., description="Zero-based row offset used for pagination.", examples=[0])
     total: int = Field(..., description="Total number of timeline assets currently available.", examples=[12453])
     has_more: bool = Field(..., description="Whether more assets exist beyond the current page.", examples=[True])
+    summary: TimelineSummary
 
 
 class DashboardStatsResponse(BaseModel):
@@ -118,6 +136,38 @@ class DashboardStatsResponse(BaseModel):
     total_memories: int = Field(..., description="Alias of total processed assets used by the dashboard cards.")
     total_photos: int = Field(..., description="Total processed image assets available in the archive.")
     total_videos: int = Field(..., description="Total processed video assets available in the archive.")
+
+
+class TimelineTagsResponse(BaseModel):
+    tags: list[str] = Field(..., description="Distinct user-defined asset tags available for filtering.")
+
+
+class AssetMutationResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "id": "eba274cb-6509-40f6-9a9f-df634f0f2894",
+                "is_favorite": True,
+                "tags": ["vacation", "beach"],
+            }
+        }
+    )
+
+    id: UUID = Field(..., description="Asset identifier that was updated.")
+    is_favorite: bool = Field(..., description="Latest favorite flag after the mutation.")
+    tags: list[str] = Field(..., description="Latest normalized tag list after the mutation.")
+
+
+class AssetTagsUpdateRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "tags": ["vacation", "beach"],
+            }
+        }
+    )
+
+    tags: list[str] = Field(..., description="Complete replacement tag list for the target asset.")
 
 
 class SettingsStorageInfo(BaseModel):

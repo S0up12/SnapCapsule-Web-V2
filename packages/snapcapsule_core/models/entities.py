@@ -45,6 +45,7 @@ class Asset(TimestampMixin, Base):
         UniqueConstraint("original_path", name="uq_assets_original_path"),
         Index("ix_assets_taken_at_media_type", "taken_at", "media_type"),
         Index("ix_assets_source_type_taken_at", "source_type", "taken_at"),
+        Index("ix_assets_is_favorite", "is_favorite"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -61,6 +62,8 @@ class Asset(TimestampMixin, Base):
     checksum_sha256: Mapped[str | None] = mapped_column(String(64), index=True)
     file_size_bytes: Mapped[int | None] = mapped_column(BigInteger)
     taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     raw_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     chat_messages: Mapped[list["ChatMessage"]] = relationship(
