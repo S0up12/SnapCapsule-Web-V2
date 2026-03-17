@@ -11,7 +11,7 @@ export type ChatConversation = {
 export type ChatMediaAsset = {
   id: string;
   taken_at: string | null;
-  media_type: "image" | "video";
+  media_type: "image" | "video" | "audio";
   is_favorite: boolean;
   tags: string[];
 };

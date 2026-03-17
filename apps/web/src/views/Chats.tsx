@@ -1,8 +1,8 @@
-import { ArrowDownWideNarrow, LoaderCircle, MessageSquareText, Search } from "lucide-react";
+import { ArrowDownWideNarrow, LoaderCircle, MessageSquareText, Mic, Search } from "lucide-react";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import Lightbox from "../components/Lightbox";
-import { getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
+import { getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
 import { useChatMessages, useChats, type ChatConversation, type ChatMediaAsset, type ChatMessageGroup } from "../hooks/useChats";
 
 function formatConversationTime(value: string | null) {
@@ -104,6 +104,32 @@ function ChatMediaThumbnail({
   );
 }
 
+function ChatVoiceMessage({
+  asset,
+}: {
+  asset: ChatMediaAsset;
+}) {
+  return (
+    <div className="w-[20rem] max-w-full rounded-[1rem] border border-black/10 bg-black/5 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/14 text-sky-700 dark:text-sky-200">
+          <Mic className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Voice Message</p>
+          <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">Audio attachment</p>
+        </div>
+      </div>
+      <audio
+        controls
+        preload="metadata"
+        src={getOriginalUrl(asset.id)}
+        className="mt-3 block w-full"
+      />
+    </div>
+  );
+}
+
 function MessageBubble({
   message,
   onOpenMedia,
@@ -132,7 +158,11 @@ function MessageBubble({
           {message.media_assets.length > 0 ? (
             <div className={`${message.text ? "mt-3" : ""} flex flex-wrap gap-2`}>
               {message.media_assets.map((asset) => (
-                <ChatMediaThumbnail key={asset.id} asset={asset} onOpen={() => onOpenMedia(asset.id)} />
+                asset.media_type === "audio" ? (
+                  <ChatVoiceMessage key={asset.id} asset={asset} />
+                ) : (
+                  <ChatMediaThumbnail key={asset.id} asset={asset} onOpen={() => onOpenMedia(asset.id)} />
+                )
               ))}
             </div>
           ) : null}
@@ -181,6 +211,9 @@ export default function Chats() {
     const items: TimelineAsset[] = [];
     for (const message of messagesQuery.data?.items ?? []) {
       for (const asset of message.media_assets) {
+        if (asset.media_type === "audio") {
+          continue;
+        }
         items.push({
           id: asset.id,
           taken_at: asset.taken_at,

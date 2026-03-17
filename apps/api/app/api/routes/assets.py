@@ -223,7 +223,7 @@ def get_asset_original(asset_id: uuid.UUID, request: Request):
     original_path = _existing_file(asset.original_path, "Original media file is missing.")
     media_type = mimetypes.guess_type(original_path.name)[0] or "application/octet-stream"
 
-    if asset.media_type != MediaType.VIDEO:
+    if asset.media_type not in {MediaType.VIDEO, MediaType.AUDIO}:
         return FileResponse(
             path=original_path,
             media_type=media_type,

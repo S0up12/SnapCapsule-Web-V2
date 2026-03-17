@@ -227,7 +227,7 @@ def list_grouped_chat_messages(
                 message.assets,
                 key=lambda asset: (asset.taken_at or message.sent_at, str(asset.id)),
             )
-            if asset.media_type in {MediaType.IMAGE, MediaType.VIDEO}
+            if asset.media_type in {MediaType.IMAGE, MediaType.VIDEO, MediaType.AUDIO}
         )
 
         if group_by_minute and grouped and sender_label == last_sender_label and minute_key == last_minute:

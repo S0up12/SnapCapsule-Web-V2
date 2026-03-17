@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -63,6 +64,20 @@ class MediaProcessor:
             return self._generate_video_thumbnail(media_path, destination)
         return None
 
+    def detect_actual_media_type(self, media_path: str | Path, fallback: MediaType) -> MediaType:
+        path = Path(media_path)
+        if fallback == MediaType.AUDIO or path.suffix.lower() == ".m4a":
+            return MediaType.AUDIO
+        if fallback != MediaType.VIDEO:
+            return fallback
+
+        stream_types = self._probe_stream_types(path)
+        if "video" in stream_types:
+            return MediaType.VIDEO
+        if "audio" in stream_types:
+            return MediaType.AUDIO
+        return fallback
+
     def compute_checksum(self, file_path: str | Path) -> str:
         digest = hashlib.sha256()
         with Path(file_path).open("rb") as handle:
@@ -120,3 +135,30 @@ class MediaProcessor:
             timeout=20,
         )
         return destination
+
+    def _probe_stream_types(self, media_path: str | Path) -> set[str]:
+        command = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=codec_type",
+            "-of",
+            "json",
+            str(media_path),
+        ]
+        result = subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=20,
+            text=True,
+        )
+        payload = json.loads(result.stdout or "{}")
+        streams = payload.get("streams", [])
+        return {
+            str(stream.get("codec_type", "")).strip().lower()
+            for stream in streams
+            if isinstance(stream, dict) and stream.get("codec_type")
+        }

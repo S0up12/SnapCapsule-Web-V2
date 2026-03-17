@@ -162,6 +162,7 @@ def process_asset_media(
                 raise ValueError("Asset disappeared during processing")
             if job.status == IngestionJobStatus.CANCELED:
                 raise JobCanceledError(f"Ingestion job {job_id} was canceled")
+            asset.media_type = processor.detect_actual_media_type(stored_media, asset.media_type)
             thumbnail_error: str | None = None
             try:
                 thumbnail = processor.generate_thumbnail(
