@@ -12,6 +12,13 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --shell-bg: #04070c;
+  --shell-panel: rgba(255, 255, 255, 0.045);
+  --shell-border: rgba(255, 255, 255, 0.1);
+  --shell-text: #e2e8f0;
+  --shell-muted: #94a3b8;
+  --shell-accent: #38bdf8;
+  --shell-accent-warm: #f59e0b;
 }
 
 html,
@@ -27,6 +34,10 @@ html {
 body {
   margin: 0;
   min-width: 320px;
+  background:
+    radial-gradient(circle at top, rgba(14, 165, 233, 0.08), transparent 24%),
+    radial-gradient(circle at 80% 0%, rgba(245, 158, 11, 0.08), transparent 18%),
+    linear-gradient(180deg, #06101a 0%, #04070c 52%, #020407 100%);
 }
 
 body::selection {
@@ -35,6 +46,18 @@ body::selection {
 
 * {
   box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 ::-webkit-scrollbar {

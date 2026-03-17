@@ -27,7 +27,7 @@ function StatCard({
   );
 }
 
-export default function TimelineView() {
+export default function Memories() {
   const {
     assets,
     total,
@@ -51,14 +51,14 @@ export default function TimelineView() {
       <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,_rgba(8,16,28,0.98),_rgba(8,24,40,0.88),_rgba(4,9,16,0.98))] shadow-2xl shadow-black/30">
         <div className="grid gap-8 px-6 py-8 md:px-8 xl:grid-cols-[1.15fr_0.85fr] xl:px-10">
           <div className="space-y-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.34em] text-cyan-300/70">Timeline</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.34em] text-cyan-300/70">Memories</p>
             <div className="space-y-4">
               <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                Scroll through the archive without paying the DOM cost for items you cannot see.
+                Memories
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-slate-300">
-                The grid streams timeline pages in batches of 100, renders only visible tiles, and switches to
-                full-resolution originals only when the lightbox opens.
+                The archive grid streams timeline pages in batches, groups them by date, and only renders the tiles that
+                are actually on screen.
               </p>
             </div>
           </div>
@@ -101,7 +101,7 @@ export default function TimelineView() {
 
       {isError ? (
         <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
-          {error instanceof Error ? error.message : "Failed to load timeline."}
+          {error instanceof Error ? error.message : "Failed to load memories."}
         </div>
       ) : null}
 
