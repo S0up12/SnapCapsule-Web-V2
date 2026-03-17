@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import shutil
+import uuid
 import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -21,6 +22,8 @@ DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 MEDIA_ID_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm", ".mkv", ".m4v"}
 MEDIA_SUFFIXES = ("_overlay", "_caption", "_image", "_video", "_media", "_main")
+CHAT_MEDIA_MATCH_MAX_DELTA_SECONDS = 5
+SNAP_MEDIA_MATCH_MAX_DELTA_SECONDS = 5
 MERGEABLE_JSON_FILES = {
     "chat_history.json",
     "snap_history.json",
@@ -781,10 +784,14 @@ class IngestionService:
         state: IndexedAssetState,
     ) -> list[IndexedAsset]:
         if media_ids:
-            explicit_matches = []
+            explicit_matches: list[IndexedAsset] = []
+            seen_asset_ids: set[uuid.UUID] = set()
             for media_id in media_ids:
-                if media_id in state.chat_media_id_map:
-                    explicit_matches.append(state.chat_media_id_map[media_id])
+                match = state.chat_media_id_map.get(media_id)
+                if match is None or match.asset.id in seen_asset_ids:
+                    continue
+                explicit_matches.append(match)
+                seen_asset_ids.add(match.asset.id)
             if explicit_matches:
                 for match in explicit_matches:
                     match.claimed = True
@@ -793,28 +800,19 @@ class IngestionService:
         if message_type.upper() == "TEXT":
             return []
 
-        bucket = state.chat_date_buckets.get(timestamp.strftime("%Y-%m-%d"), [])
-        for candidate in bucket:
-            if candidate.claimed or candidate.taken_at is None:
-                continue
-            if abs((candidate.taken_at - timestamp).total_seconds()) < 5:
-                candidate.claimed = True
-                return [candidate]
-
-        remaining = [candidate for candidate in bucket if not candidate.claimed]
-        if len(remaining) == 1:
-            remaining[0].claimed = True
-            return [remaining[0]]
-        return []
+        matched_asset = self.find_precise_bucket_asset(
+            state.chat_date_buckets,
+            timestamp,
+            max_delta_seconds=CHAT_MEDIA_MATCH_MAX_DELTA_SECONDS,
+        )
+        return [matched_asset] if matched_asset is not None else []
 
     def find_snap_history_asset(self, timestamp: datetime, state: IndexedAssetState) -> IndexedAsset | None:
-        bucket = state.chat_date_buckets.get(timestamp.strftime("%Y-%m-%d"), [])
-        for candidate in bucket:
-            if candidate.claimed:
-                continue
-            candidate.claimed = True
-            return candidate
-        return None
+        return self.find_precise_bucket_asset(
+            state.chat_date_buckets,
+            timestamp,
+            max_delta_seconds=SNAP_MEDIA_MATCH_MAX_DELTA_SECONDS,
+        )
 
     def find_bucket_asset(
         self,
@@ -830,6 +828,40 @@ class IngestionService:
             candidate.claimed = True
             return candidate
         return None
+
+    def find_precise_bucket_asset(
+        self,
+        buckets: dict[str, list[IndexedAsset]],
+        timestamp: datetime | None,
+        *,
+        max_delta_seconds: int,
+    ) -> IndexedAsset | None:
+        if timestamp is None:
+            return None
+
+        bucket = buckets.get(timestamp.strftime("%Y-%m-%d"), [])
+        candidates: list[tuple[float, IndexedAsset]] = []
+        for candidate in bucket:
+            if candidate.claimed or candidate.taken_at is None:
+                continue
+            if not self.has_precise_timestamp(candidate.taken_at):
+                continue
+
+            delta_seconds = abs((candidate.taken_at - timestamp).total_seconds())
+            if delta_seconds > max_delta_seconds:
+                continue
+            candidates.append((delta_seconds, candidate))
+
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda item: (item[0], item[1].taken_at or datetime.min.replace(tzinfo=UTC), str(item[1].asset.id)))
+        if len(candidates) > 1 and candidates[0][0] == candidates[1][0]:
+            return None
+
+        matched = candidates[0][1]
+        matched.claimed = True
+        return matched
 
     @staticmethod
     def flatten_story_payload(payload: Any) -> list[dict[str, Any]]:
@@ -1026,3 +1058,7 @@ class IngestionService:
         except OSError:
             return filename_date
         return filename_date
+
+    @staticmethod
+    def has_precise_timestamp(timestamp: datetime) -> bool:
+        return any((timestamp.hour, timestamp.minute, timestamp.second, timestamp.microsecond))
