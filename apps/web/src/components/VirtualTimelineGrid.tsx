@@ -3,7 +3,7 @@ import { Camera, Clapperboard, LoaderCircle, Star } from "lucide-react";
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import AssetContextMenu from "./memories/AssetContextMenu";
-import { formatTimelineDate, getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
+import { formatTimelineDate, formatTimelineGroup, getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
 
 type GridRow =
   | {
@@ -41,6 +41,9 @@ type ContextMenuState = {
 const GRID_GAP = 14;
 const MIN_TILE_WIDTH = 148;
 const PORTRAIT_RATIO = 16 / 9;
+const HEADER_ROW_ESTIMATE = 90;
+const SCROLL_FETCH_THRESHOLD = 1200;
+const BOTTOM_STATUS_THRESHOLD = 220;
 
 function TimelineTile({
   asset,
@@ -158,6 +161,7 @@ export default function VirtualTimelineGrid({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [showBottomStatus, setShowBottomStatus] = useState(false);
   const activeStickyIndexRef = useRef(0);
 
   useEffect(() => {
@@ -224,7 +228,7 @@ export default function VirtualTimelineGrid({
     >();
 
     for (const [index, asset] of assets.entries()) {
-      const formatted = formatTimelineDate(asset.taken_at);
+      const formatted = formatTimelineGroup(asset.taken_at);
       const group = grouped.get(formatted.key) ?? {
         label: formatted.label,
         shortLabel: formatted.shortLabel,
@@ -262,7 +266,7 @@ export default function VirtualTimelineGrid({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => (rows[index]?.type === "header" ? 58 : tileHeight + GRID_GAP),
+    estimateSize: (index) => (rows[index]?.type === "header" ? HEADER_ROW_ESTIMATE : tileHeight + GRID_GAP),
     overscan: 8,
     rangeExtractor: (range) => {
       const activeStickyIndex =
@@ -274,14 +278,32 @@ export default function VirtualTimelineGrid({
   });
 
   useEffect(() => {
-    const lastItem = rowVirtualizer.getVirtualItems().at(-1);
-    if (!lastItem) {
+    const element = scrollRef.current;
+    if (!element) {
       return;
     }
-    if (lastItem.index >= rows.length - 6 && hasNextPage && !isFetchingNextPage) {
-      void fetchNextPage();
-    }
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, rowVirtualizer, rows.length]);
+
+    const handleScrollState = () => {
+      const remainingScroll = element.scrollHeight - element.scrollTop - element.clientHeight;
+      const nextShowBottomStatus = remainingScroll <= BOTTOM_STATUS_THRESHOLD;
+      setShowBottomStatus((current) => (current === nextShowBottomStatus ? current : nextShowBottomStatus));
+
+      if (!hasNextPage || isFetchingNextPage) {
+        return;
+      }
+
+      if (remainingScroll <= SCROLL_FETCH_THRESHOLD) {
+        void fetchNextPage();
+      }
+    };
+
+    handleScrollState();
+    element.addEventListener("scroll", handleScrollState, { passive: true });
+
+    return () => {
+      element.removeEventListener("scroll", handleScrollState);
+    };
+  }, [assets.length, fetchNextPage, hasNextPage, isFetchingNextPage, rows.length]);
 
   if (isInitialLoading) {
     return <LoadingState />;
@@ -317,12 +339,15 @@ export default function VirtualTimelineGrid({
               return (
                 <div
                   key={row.key}
+                  ref={rowVirtualizer.measureElement}
+                  data-index={virtualRow.index}
                   style={
                     isActiveStickyHeader
                       ? {
                           position: "sticky",
                           top: 0,
                           zIndex: 20,
+                          width: "100%",
                         }
                       : {
                           position: "absolute",
@@ -334,20 +359,22 @@ export default function VirtualTimelineGrid({
                   }
                 >
                   {row.type === "header" ? (
-                    <div className="mb-2 flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white/86 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-slate-950/80">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700/75 dark:text-cyan-300/70">
-                          {row.shortLabel}
-                        </p>
-                        <h3 className="mt-1 text-sm font-medium text-slate-950 dark:text-white sm:text-base">{row.label}</h3>
+                    <div className="pb-[14px] pt-1">
+                      <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,250,252,0.94))] px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.08)] backdrop-blur dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(8,14,24,0.96),rgba(4,8,14,0.92))] dark:shadow-black/20">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700/75 dark:text-cyan-300/70">
+                            {row.shortLabel}
+                          </p>
+                          <h3 className="mt-1 text-sm font-medium text-slate-950 dark:text-white sm:text-base">{row.label}</h3>
+                        </div>
+                        <span className="rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-xs uppercase tracking-[0.18em] text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+                          {row.count}
+                        </span>
                       </div>
-                      <span className="rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-xs uppercase tracking-[0.18em] text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
-                        {row.count}
-                      </span>
                     </div>
                   ) : (
                     <div
-                      className="grid"
+                      className="grid pb-[14px]"
                       style={{
                         gap: GRID_GAP,
                         gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
@@ -382,15 +409,15 @@ export default function VirtualTimelineGrid({
             })}
           </div>
 
-          <div className="sticky bottom-0 mt-4 flex justify-center pb-1 pt-4">
-            {isFetchingNextPage ? (
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs uppercase tracking-[0.22em] text-slate-700 backdrop-blur dark:border-white/10 dark:bg-slate-950/80 dark:text-slate-300">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center px-3 pb-3">
+            {isFetchingNextPage && showBottomStatus ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs uppercase tracking-[0.22em] text-slate-700 shadow-lg shadow-slate-900/5 backdrop-blur dark:border-white/10 dark:bg-slate-950/80 dark:text-slate-300 dark:shadow-black/20">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 Loading next page
               </div>
             ) : null}
-            {!hasNextPage && total > 0 ? (
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs uppercase tracking-[0.22em] text-slate-500 backdrop-blur dark:border-white/10 dark:bg-slate-950/80 dark:text-slate-500">
+            {!hasNextPage && total > 0 && showBottomStatus ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs uppercase tracking-[0.22em] text-slate-500 shadow-lg shadow-slate-900/5 backdrop-blur dark:border-white/10 dark:bg-slate-950/80 dark:text-slate-500 dark:shadow-black/20">
                 End of timeline
               </div>
             ) : null}

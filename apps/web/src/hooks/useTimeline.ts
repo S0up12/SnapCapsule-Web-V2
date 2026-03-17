@@ -111,6 +111,32 @@ export function formatTimelineDate(value: string | null) {
   };
 }
 
+export function formatTimelineGroup(value: string | null) {
+  if (!value) {
+    return {
+      key: "undated",
+      label: "Undated",
+      shortLabel: "Unknown date",
+    };
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return {
+      key: "undated",
+      label: "Undated",
+      shortLabel: "Unknown date",
+    };
+  }
+
+  const year = date.getUTCFullYear();
+  return {
+    key: String(year),
+    label: String(year),
+    shortLabel: "Year",
+  };
+}
+
 export function getThumbnailUrl(assetId: string) {
   return `/api/asset/${assetId}/thumbnail`;
 }
