@@ -1,6 +1,6 @@
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { Camera, Clapperboard, LoaderCircle, Star } from "lucide-react";
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AssetContextMenu from "./memories/AssetContextMenu";
 import { formatTimelineDate, formatTimelineGroup, getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
@@ -158,14 +158,17 @@ export default function VirtualTimelineGrid({
   onToggleFavorite,
   onEditTags,
 }: VirtualTimelineGridProps) {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showBottomStatus, setShowBottomStatus] = useState(false);
   const activeStickyIndexRef = useRef(0);
+  const handleScrollElementRef = useCallback((node: HTMLDivElement | null) => {
+    setScrollElement(node);
+  }, []);
 
   useEffect(() => {
-    const element = scrollRef.current;
+    const element = scrollElement;
     if (!element) {
       return;
     }
@@ -184,7 +187,7 @@ export default function VirtualTimelineGrid({
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [scrollElement]);
 
   useEffect(() => {
     if (!contextMenu) {
@@ -265,7 +268,7 @@ export default function VirtualTimelineGrid({
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => scrollRef.current,
+    getScrollElement: () => scrollElement,
     estimateSize: (index) => (rows[index]?.type === "header" ? HEADER_ROW_ESTIMATE : tileHeight + GRID_GAP),
     overscan: 8,
     rangeExtractor: (range) => {
@@ -278,7 +281,7 @@ export default function VirtualTimelineGrid({
   });
 
   useEffect(() => {
-    const element = scrollRef.current;
+    const element = scrollElement;
     if (!element) {
       return;
     }
@@ -303,7 +306,7 @@ export default function VirtualTimelineGrid({
     return () => {
       element.removeEventListener("scroll", handleScrollState);
     };
-  }, [assets.length, fetchNextPage, hasNextPage, isFetchingNextPage, rows.length]);
+  }, [assets.length, fetchNextPage, hasNextPage, isFetchingNextPage, rows.length, scrollElement]);
 
   if (isInitialLoading) {
     return <LoadingState />;
@@ -317,7 +320,7 @@ export default function VirtualTimelineGrid({
     <>
       <div className="rounded-[1.75rem] border border-slate-200/70 bg-white/75 p-3 shadow-[0_24px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950/55 dark:shadow-black/20 sm:p-4">
         <div
-          ref={scrollRef}
+          ref={handleScrollElementRef}
           className="relative h-[calc(100vh-16rem)] min-h-[560px] overflow-auto rounded-[1.35rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,248,252,0.96))] p-3 dark:border-white/5 dark:bg-[linear-gradient(180deg,rgba(8,14,24,0.95),rgba(4,8,14,0.98))]"
         >
           <div
