@@ -5,6 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import "./index.css";
 
+const initialDarkMode = window.localStorage.getItem("snapcapsule:dark-mode") !== "false";
+document.documentElement.classList.toggle("dark", initialDarkMode);
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

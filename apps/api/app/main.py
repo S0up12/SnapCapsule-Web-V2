@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from apps.api.app.api.routes.assets import router as assets_router
 from apps.api.app.api.routes.health import router as health_router
 from apps.api.app.api.routes.ingestion import router as ingestion_router
+from apps.api.app.api.routes.settings import router as settings_router
 from apps.api.app.api.schemas import RootResponse
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.db import init_database
@@ -30,6 +31,10 @@ OPENAPI_TAGS = [
         "description": "Summary endpoints used by the web dashboard to decide between import onboarding and stats views.",
     },
     {
+        "name": "Settings",
+        "description": "User preferences and developer-friendly runtime configuration for the web workspace.",
+    },
+    {
         "name": "Media Server",
         "description": "Fast file-serving endpoints for thumbnails and originals, including HTTP range support for videos.",
     },
@@ -51,7 +56,7 @@ app = FastAPI(
         "Celery workers, PostgreSQL metadata, Redis queueing, and direct filesystem media access "
         "for fast thumbnail grids and video streaming."
     ),
-    version="0.6.0",
+    version="0.7.0",
     lifespan=lifespan,
     openapi_tags=OPENAPI_TAGS,
 )
@@ -67,6 +72,7 @@ app.add_middleware(
 app.include_router(assets_router)
 app.include_router(health_router)
 app.include_router(ingestion_router)
+app.include_router(settings_router)
 
 
 @app.get(

@@ -120,6 +120,106 @@ class DashboardStatsResponse(BaseModel):
     total_videos: int = Field(..., description="Total processed video assets available in the archive.")
 
 
+class SettingsStorageInfo(BaseModel):
+    raw_media_dir: str = Field(..., description="Mounted directory that stores original Snapchat media.")
+    thumbnail_dir: str = Field(..., description="Mounted directory that stores generated thumbnail images.")
+
+
+class AppSettingsResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "dark_mode": True,
+                "autoplay_videos_in_grid": False,
+                "default_grid_size": "medium",
+                "enable_debug_logging": False,
+                "storage": {
+                    "raw_media_dir": "/srv/snapcapsule/raw",
+                    "thumbnail_dir": "/srv/snapcapsule/thumbnails",
+                },
+            }
+        }
+    )
+
+    dark_mode: bool = Field(..., description="Whether the web shell should render with the dark theme enabled.")
+    autoplay_videos_in_grid: bool = Field(
+        ...,
+        description="Whether muted video thumbnails should begin playback automatically inside gallery views.",
+    )
+    default_grid_size: str = Field(
+        ...,
+        description="Preferred thumbnail density used by the memories grid.",
+        examples=["medium"],
+    )
+    enable_debug_logging: bool = Field(
+        ...,
+        description="Whether backend application loggers should run at debug level.",
+    )
+    storage: SettingsStorageInfo
+
+
+class AppSettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "dark_mode": False,
+                "autoplay_videos_in_grid": True,
+                "default_grid_size": "large",
+                "enable_debug_logging": True,
+            }
+        }
+    )
+
+    dark_mode: bool | None = Field(default=None, description="Persisted dark mode preference.")
+    autoplay_videos_in_grid: bool | None = Field(default=None, description="Persisted autoplay preference.")
+    default_grid_size: str | None = Field(
+        default=None,
+        description="Persisted default thumbnail size. Accepted values: small, medium, large.",
+    )
+    enable_debug_logging: bool | None = Field(
+        default=None,
+        description="Persisted backend debug logging preference.",
+    )
+
+
+class SystemActionResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "status": "accepted",
+                "message": "Queued 2 mounted archive folder(s) for background rescan.",
+                "affected_items": 2,
+            }
+        }
+    )
+
+    status: str = Field(..., description="Outcome classification for the requested system action.")
+    message: str = Field(..., description="Short human-readable summary of what happened.")
+    affected_items: int = Field(..., description="Count of folders, files, or rows touched by the action.")
+
+
+class SystemStatusResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "worker_state": "idle",
+                "worker_label": "Workers idle",
+                "workers_online": 1,
+                "active_tasks": 0,
+                "queued_tasks": 0,
+                "debug_logging_enabled": False,
+            }
+        }
+    )
+
+    worker_state: str = Field(..., description="High-level worker state: offline, idle, or processing.")
+    worker_label: str = Field(..., description="User-facing summary of the worker state.")
+    workers_online: int = Field(..., description="Number of Celery workers responding to inspect ping.")
+    active_tasks: int = Field(..., description="Number of tasks currently executing on connected workers.")
+    queued_tasks: int = Field(..., description="Number of tasks waiting in Redis queues.")
+    debug_logging_enabled: bool = Field(..., description="Whether backend debug logging is currently enabled.")
+
+
 class IngestionStartResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={

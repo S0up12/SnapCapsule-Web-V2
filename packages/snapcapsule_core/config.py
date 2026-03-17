@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     def ingest_archive_dir(self) -> Path:
         return Path(self.ingest_root_dir) / "archives"
 
+    @property
+    def preferences_file_path(self) -> Path:
+        return Path(self.ingest_root_dir) / "user-preferences.json"
+
     def ensure_storage_dirs(self) -> None:
         Path(self.raw_media_dir).mkdir(parents=True, exist_ok=True)
         Path(self.thumbnail_dir).mkdir(parents=True, exist_ok=True)

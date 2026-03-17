@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  color: #e2e8f0;
-  background: #04070c;
+  color: #0f172a;
+  background: #edf4fb;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -12,13 +12,23 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --shell-bg: #edf4fb;
+  --shell-panel: rgba(255, 255, 255, 0.8);
+  --shell-border: rgba(15, 23, 42, 0.08);
+  --shell-text: #0f172a;
+  --shell-muted: #475569;
+  --shell-accent: #38bdf8;
+  --shell-accent-warm: #f59e0b;
+}
+
+html.dark {
+  color: #e2e8f0;
+  background: #04070c;
   --shell-bg: #04070c;
   --shell-panel: rgba(255, 255, 255, 0.045);
   --shell-border: rgba(255, 255, 255, 0.1);
   --shell-text: #e2e8f0;
   --shell-muted: #94a3b8;
-  --shell-accent: #38bdf8;
-  --shell-accent-warm: #f59e0b;
 }
 
 html,
@@ -34,6 +44,13 @@ html {
 body {
   margin: 0;
   min-width: 320px;
+  background:
+    radial-gradient(circle at top, rgba(14, 165, 233, 0.08), transparent 24%),
+    radial-gradient(circle at 80% 0%, rgba(245, 158, 11, 0.08), transparent 18%),
+    linear-gradient(180deg, #edf4fb 0%, #e4edf8 52%, #d9e5f2 100%);
+}
+
+html.dark body {
   background:
     radial-gradient(circle at top, rgba(14, 165, 233, 0.08), transparent 24%),
     radial-gradient(circle at 80% 0%, rgba(245, 158, 11, 0.08), transparent 18%),
