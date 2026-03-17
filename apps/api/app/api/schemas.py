@@ -350,7 +350,7 @@ class IngestionStartResponse(BaseModel):
                 "job_id": "09722d7e-4662-4355-8fa2-4ae84de45dae",
                 "task_id": "0e86606f-d10f-4c9d-9cb8-7eab0ba629ff",
                 "status": "queued",
-                "message": "Background ingestion started",
+                "message": "Background ingestion queued",
             }
         }
     )
@@ -367,6 +367,10 @@ class IngestionDirectoryRequest(BaseModel):
         description="Absolute path inside the backend container pointing to an extracted Snapchat export directory.",
         examples=["/srv/snapcapsule/ingest/sample-export"],
     )
+
+
+class IngestionCancelRequest(BaseModel):
+    job_id: UUID = Field(..., description="Ingestion job identifier to cancel.")
 
 
 class IngestionJobResponse(BaseModel):
@@ -389,7 +393,7 @@ class IngestionJobResponse(BaseModel):
                 "created_at": "2026-03-17T12:51:37.153488+00:00",
                 "updated_at": "2026-03-17T12:51:37.759333+00:00",
                 "finished_at": "2026-03-17T12:51:37.930270+00:00",
-                "raw_metadata": {"uploaded_filename": "snapchat-export.zip"},
+                "raw_metadata": {"archive_count": 2, "uploaded_filenames": ["part1.zip", "part2.zip"]},
             }
         }
     )

@@ -8,7 +8,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any
+from typing import Any, Callable
 
 from bs4 import BeautifulSoup
 from sqlalchemy import select
@@ -21,6 +21,15 @@ DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 MEDIA_ID_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm", ".mkv", ".m4v"}
 MEDIA_SUFFIXES = ("_overlay", "_caption", "_image", "_video", "_media", "_main")
+MERGEABLE_JSON_FILES = {
+    "chat_history.json",
+    "snap_history.json",
+    "memories_history.json",
+    "stories_history.json",
+    "story_history.json",
+    "stories.json",
+}
+MEDIA_DIRECTORIES = ("chat_media", "memories", "stories", "story_media")
 
 
 @dataclass(slots=True)
@@ -43,21 +52,53 @@ class IndexedAssetState:
     story_date_buckets: dict[str, list[IndexedAsset]]
 
 
+@dataclass(slots=True)
+class PreparedSource:
+    roots: list[Path]
+    workspace_path: Path | None
+    preserve_source: bool
+
+
 class IngestionService:
     def __init__(self, settings):
         self.settings = settings
 
-    def prepare_source(self, job: IngestionJob) -> tuple[Path, Path | None, bool]:
+    def prepare_source(self, job: IngestionJob) -> PreparedSource:
         source_path = Path(job.source_path)
         if job.source_kind == IngestionSourceKind.DIRECTORY:
-            return self.find_snap_root(source_path), None, True
+            return PreparedSource(
+                roots=[self.find_snap_root(source_path)],
+                workspace_path=None,
+                preserve_source=True,
+            )
 
         workspace_path = self.settings.ingest_workspace_dir / str(job.id)
         if workspace_path.exists():
             shutil.rmtree(workspace_path)
         workspace_path.mkdir(parents=True, exist_ok=True)
-        self.safe_extract_zip(source_path, workspace_path)
-        return self.find_snap_root(workspace_path), workspace_path, False
+        fragments_root = workspace_path / "_parts"
+        fragments_root.mkdir(parents=True, exist_ok=True)
+
+        archive_paths = sorted(
+            archive_path
+            for archive_path in source_path.glob("*.zip")
+            if archive_path.is_file()
+        )
+        if not archive_paths:
+            raise FileNotFoundError(f"No ZIP archives found in upload bundle: {source_path}")
+
+        roots: list[Path] = []
+        for index, archive_path in enumerate(archive_paths, start=1):
+            extract_root = fragments_root / f"part-{index:03d}"
+            extract_root.mkdir(parents=True, exist_ok=True)
+            self.safe_extract_zip(archive_path, extract_root)
+            roots.append(self.find_snap_root(extract_root))
+
+        return PreparedSource(
+            roots=roots,
+            workspace_path=workspace_path,
+            preserve_source=False,
+        )
 
     def safe_extract_zip(self, archive_path: Path, destination: Path) -> None:
         with zipfile.ZipFile(archive_path, "r") as archive:
@@ -71,6 +112,206 @@ class IngestionService:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(member) as source, target.open("wb") as handle:
                     shutil.copyfileobj(source, handle)
+
+    def merge_snap_root(self, source_root: Path, destination_root: Path, archive_label: str) -> None:
+        destination_root.mkdir(parents=True, exist_ok=True)
+
+        for directory_name in MEDIA_DIRECTORIES:
+            self.merge_directory(
+                source_root / directory_name,
+                destination_root / directory_name,
+                keep_existing=True,
+            )
+
+        self.merge_directory(
+            source_root / "html",
+            destination_root / "html",
+            keep_existing=False,
+            rename_conflicts=True,
+            conflict_suffix=archive_label,
+        )
+
+        json_source_dirs = [
+            (source_root / "json", destination_root / "json"),
+            (source_root, destination_root),
+        ]
+        for source_dir, destination_dir in json_source_dirs:
+            if not source_dir.exists() or not source_dir.is_dir():
+                continue
+            for json_file in source_dir.glob("*.json"):
+                self.merge_json_file(
+                    json_file,
+                    destination_dir / json_file.name,
+                )
+
+    def merge_directory(
+        self,
+        source_dir: Path,
+        destination_dir: Path,
+        *,
+        keep_existing: bool,
+        rename_conflicts: bool = False,
+        conflict_suffix: str | None = None,
+    ) -> None:
+        if not source_dir.exists():
+            return
+
+        for source_path in source_dir.rglob("*"):
+            if source_path.name.startswith("."):
+                continue
+
+            relative_path = source_path.relative_to(source_dir)
+            target_path = destination_dir / relative_path
+            if source_path.is_dir():
+                target_path.mkdir(parents=True, exist_ok=True)
+                continue
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            if target_path.exists():
+                if keep_existing:
+                    continue
+                if rename_conflicts and not self.files_match(source_path, target_path):
+                    suffix = conflict_suffix or "duplicate"
+                    target_path = target_path.with_name(
+                        f"{target_path.stem}__{suffix}{target_path.suffix}"
+                    )
+                else:
+                    continue
+
+            shutil.copy2(source_path, target_path)
+
+    def merge_json_file(self, source_path: Path, destination_path: Path) -> None:
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        if not destination_path.exists():
+            shutil.copy2(source_path, destination_path)
+            return
+
+        if source_path.name not in MERGEABLE_JSON_FILES:
+            return
+
+        with destination_path.open("r", encoding="utf-8") as existing_handle:
+            existing_payload = json.load(existing_handle)
+        with source_path.open("r", encoding="utf-8") as incoming_handle:
+            incoming_payload = json.load(incoming_handle)
+
+        if source_path.name in {"chat_history.json", "snap_history.json"}:
+            merged_payload = self.merge_conversation_payload(existing_payload, incoming_payload)
+        elif source_path.name == "memories_history.json":
+            merged_payload = self.merge_memories_payload(existing_payload, incoming_payload)
+        else:
+            merged_payload = self.merge_generic_json_payload(existing_payload, incoming_payload)
+
+        with destination_path.open("w", encoding="utf-8") as handle:
+            json.dump(merged_payload, handle, indent=2)
+
+    @staticmethod
+    def merge_conversation_payload(existing_payload: Any, incoming_payload: Any) -> dict[str, Any]:
+        existing_dict = existing_payload if isinstance(existing_payload, dict) else {}
+        incoming_dict = incoming_payload if isinstance(incoming_payload, dict) else {}
+
+        merged: dict[str, Any] = {
+            key: value
+            for key, value in existing_dict.items()
+        }
+        for conversation_id, payload in incoming_dict.items():
+            if isinstance(payload, list):
+                existing_messages = merged.get(conversation_id)
+                target_messages = list(existing_messages) if isinstance(existing_messages, list) else []
+                seen_signatures = {
+                    IngestionService.json_signature(message)
+                    for message in target_messages
+                }
+                for message in payload:
+                    signature = IngestionService.json_signature(message)
+                    if signature in seen_signatures:
+                        continue
+                    target_messages.append(message)
+                    seen_signatures.add(signature)
+                merged[conversation_id] = target_messages
+            elif isinstance(payload, dict):
+                nested_existing = merged.get(conversation_id)
+                merged[conversation_id] = IngestionService.merge_conversation_payload(
+                    nested_existing if isinstance(nested_existing, dict) else {},
+                    payload,
+                )
+            elif conversation_id not in merged:
+                merged[conversation_id] = payload
+
+        return merged
+
+    @staticmethod
+    def merge_memories_payload(existing_payload: Any, incoming_payload: Any) -> dict[str, Any]:
+        merged = existing_payload if isinstance(existing_payload, dict) else {}
+        incoming = incoming_payload if isinstance(incoming_payload, dict) else {}
+
+        merged_items = list(merged.get("Saved Media", [])) if isinstance(merged.get("Saved Media"), list) else []
+        seen_signatures = {
+            IngestionService.json_signature(item)
+            for item in merged_items
+        }
+        for item in incoming.get("Saved Media", []):
+            signature = IngestionService.json_signature(item)
+            if signature in seen_signatures:
+                continue
+            merged_items.append(item)
+            seen_signatures.add(signature)
+
+        result = {
+            key: value
+            for key, value in merged.items()
+        }
+        for key, value in incoming.items():
+            if key != "Saved Media" and key not in result:
+                result[key] = value
+        result["Saved Media"] = merged_items
+        return result
+
+    @staticmethod
+    def merge_generic_json_payload(existing_payload: Any, incoming_payload: Any) -> Any:
+        if isinstance(existing_payload, list) and isinstance(incoming_payload, list):
+            merged_items = list(existing_payload)
+            seen_signatures = {
+                IngestionService.json_signature(item)
+                for item in merged_items
+            }
+            for item in incoming_payload:
+                signature = IngestionService.json_signature(item)
+                if signature in seen_signatures:
+                    continue
+                merged_items.append(item)
+                seen_signatures.add(signature)
+            return merged_items
+
+        if isinstance(existing_payload, dict) and isinstance(incoming_payload, dict):
+            merged = {
+                key: value
+                for key, value in existing_payload.items()
+            }
+            for key, value in incoming_payload.items():
+                if key not in merged:
+                    merged[key] = value
+                    continue
+                merged[key] = IngestionService.merge_generic_json_payload(merged[key], value)
+            return merged
+
+        return existing_payload
+
+    @staticmethod
+    def json_signature(payload: Any) -> str:
+        return json.dumps(payload, sort_keys=True, default=str)
+
+    @staticmethod
+    def files_match(source_path: Path, target_path: Path) -> bool:
+        if source_path.stat().st_size != target_path.stat().st_size:
+            return False
+        with source_path.open("rb") as source_handle, target_path.open("rb") as target_handle:
+            while True:
+                source_chunk = source_handle.read(1024 * 1024)
+                target_chunk = target_handle.read(1024 * 1024)
+                if source_chunk != target_chunk:
+                    return False
+                if not source_chunk:
+                    return True
 
     @staticmethod
     def is_safe_zip_member(name: str) -> bool:
@@ -95,25 +336,36 @@ class IngestionService:
                 return child
         return path
 
-    def run_ingestion(self, session: Session, job: IngestionJob) -> tuple[IndexedAssetState, bool]:
-        root_path, workspace_path, preserve_source = self.prepare_source(job)
-        job.workspace_path = str(workspace_path) if workspace_path else None
-        job.status = IngestionJobStatus.EXTRACTING
-        job.detail_message = "Preparing Snapchat export"
-        job.progress_percent = 10
-        session.flush()
+    def run_ingestion(
+        self,
+        session: Session,
+        job: IngestionJob,
+        root_paths: list[Path],
+        *,
+        cancel_check: Callable[[], None] | None = None,
+    ) -> IndexedAssetState:
+        if cancel_check is not None:
+            cancel_check()
 
-        job.status = IngestionJobStatus.PARSING
-        job.detail_message = "Indexing media"
-        job.progress_percent = 20
-        indexed_assets = self.index_assets(session, job, root_path)
+        indexed_assets = self.index_assets(session, job, root_paths)
+        if cancel_check is not None:
+            cancel_check()
 
-        job.detail_message = "Parsing chats and archive metadata"
-        job.progress_percent = 40
-        self.parse_chats(session, root_path, indexed_assets)
-        self.parse_snap_history(session, root_path, indexed_assets)
-        self.parse_memories(session, root_path, indexed_assets)
-        self.parse_stories(session, root_path, indexed_assets)
+        seen_chat_keys: set[str] = set()
+        seen_snap_keys: set[str] = set()
+
+        self.parse_chats(session, root_paths, indexed_assets, seen_chat_keys)
+        if cancel_check is not None:
+            cancel_check()
+        self.parse_snap_history(session, root_paths, indexed_assets, seen_snap_keys)
+        if cancel_check is not None:
+            cancel_check()
+        self.parse_memories(session, root_paths, indexed_assets)
+        if cancel_check is not None:
+            cancel_check()
+        self.parse_stories(session, root_paths, indexed_assets)
+        if cancel_check is not None:
+            cancel_check()
 
         job.total_assets = len(indexed_assets.all_assets)
         job.processed_assets = 0
@@ -128,100 +380,101 @@ class IngestionService:
             job.detail_message = "Queued media processing"
             job.progress_percent = 50
 
-        return indexed_assets, preserve_source
+        return indexed_assets
 
-    def index_assets(self, session: Session, job: IngestionJob, root_path: Path) -> IndexedAssetState:
+    def index_assets(self, session: Session, job: IngestionJob, root_paths: list[Path]) -> IndexedAssetState:
         chat_media_id_map: dict[str, IndexedAsset] = {}
         chat_date_buckets: dict[str, list[IndexedAsset]] = {}
         memory_date_buckets: dict[str, list[IndexedAsset]] = {}
         story_date_buckets: dict[str, list[IndexedAsset]] = {}
         indexed_assets: list[IndexedAsset] = []
 
-        media_folders = [
-            (root_path / "chat_media", AssetSource.CHAT),
-            (root_path / "memories", AssetSource.MEMORY),
-            (root_path / "stories", AssetSource.STORY),
-            (root_path / "story_media", AssetSource.STORY),
-        ]
+        for root_path in root_paths:
+            media_folders = [
+                (root_path / "chat_media", AssetSource.CHAT),
+                (root_path / "memories", AssetSource.MEMORY),
+                (root_path / "stories", AssetSource.STORY),
+                (root_path / "story_media", AssetSource.STORY),
+            ]
 
-        for folder, source_type in media_folders:
-            if not folder.exists():
-                continue
-
-            groups: dict[str, dict[str, Path | datetime | None]] = {}
-            for file_path in folder.rglob("*"):
-                if not file_path.is_file() or file_path.name.startswith("."):
-                    continue
-                stem_id = self.normalize_media_stem(file_path)
-                group = groups.setdefault(stem_id, {"main": None, "overlay": None, "ts": None})
-                if self.is_overlay_variant(file_path):
-                    group["overlay"] = file_path
+            for folder, source_type in media_folders:
+                if not folder.exists():
                     continue
 
-                current_main = group["main"]
-                if current_main is None or self.prefer_media_candidate(file_path, current_main):
-                    group["main"] = file_path
-                    group["ts"] = self.best_timestamp(file_path)
+                groups: dict[str, dict[str, Path | datetime | None]] = {}
+                for file_path in folder.rglob("*"):
+                    if not file_path.is_file() or file_path.name.startswith("."):
+                        continue
+                    stem_id = self.normalize_media_stem(file_path)
+                    group = groups.setdefault(stem_id, {"main": None, "overlay": None, "ts": None})
+                    if self.is_overlay_variant(file_path):
+                        group["overlay"] = file_path
+                        continue
 
-            for stem_id, payload in groups.items():
-                main_file = payload["main"]
-                if main_file is None:
-                    continue
+                    current_main = group["main"]
+                    if current_main is None or self.prefer_media_candidate(file_path, current_main):
+                        group["main"] = file_path
+                        group["ts"] = self.best_timestamp(file_path)
 
-                taken_at = payload["ts"]
-                overlay_file = payload["overlay"]
-                media_type = self.detect_media_type(main_file)
-                external_id = f"{main_file.relative_to(root_path).parent.as_posix()}:{stem_id}"
-                asset = session.scalar(
-                    select(Asset).where(
-                        Asset.external_id == external_id,
-                        Asset.source_type == source_type,
+                for stem_id, payload in groups.items():
+                    main_file = payload["main"]
+                    if main_file is None:
+                        continue
+
+                    taken_at = payload["ts"]
+                    overlay_file = payload["overlay"]
+                    media_type = self.detect_media_type(main_file)
+                    external_id = f"{main_file.relative_to(root_path).parent.as_posix()}:{stem_id}"
+                    asset = session.scalar(
+                        select(Asset).where(
+                            Asset.external_id == external_id,
+                            Asset.source_type == source_type,
+                        )
                     )
-                )
-                if asset is None:
-                    asset = Asset(
-                        external_id=external_id,
+                    if asset is None:
+                        asset = Asset(
+                            external_id=external_id,
+                            source_type=source_type,
+                            media_type=media_type,
+                            original_path=str(main_file.resolve()),
+                        )
+                        session.add(asset)
+                        session.flush()
+
+                    asset.original_path = str(main_file.resolve())
+                    asset.overlay_path = str(overlay_file.resolve()) if overlay_file else None
+                    asset.file_size_bytes = main_file.stat().st_size
+                    asset.taken_at = taken_at
+                    asset.raw_metadata = {
+                        "job_id": str(job.id),
+                        "source_path": str(main_file.resolve()),
+                        "overlay_source_path": str(overlay_file.resolve()) if overlay_file else None,
+                        "relative_path": main_file.relative_to(root_path).as_posix(),
+                        "processing": "queued",
+                    }
+
+                    indexed = IndexedAsset(
+                        asset=asset,
+                        source_path=main_file.resolve(),
+                        overlay_source_path=overlay_file.resolve() if overlay_file else None,
                         source_type=source_type,
-                        media_type=media_type,
-                        original_path=str(main_file.resolve()),
+                        taken_at=taken_at,
+                        snapchat_media_id=self.extract_chat_media_id(stem_id) if source_type == AssetSource.CHAT else None,
                     )
-                    session.add(asset)
-                    session.flush()
+                    indexed_assets.append(indexed)
 
-                asset.original_path = str(main_file.resolve())
-                asset.overlay_path = str(overlay_file.resolve()) if overlay_file else None
-                asset.file_size_bytes = main_file.stat().st_size
-                asset.taken_at = taken_at
-                asset.raw_metadata = {
-                    "job_id": str(job.id),
-                    "source_path": str(main_file.resolve()),
-                    "overlay_source_path": str(overlay_file.resolve()) if overlay_file else None,
-                    "relative_path": main_file.relative_to(root_path).as_posix(),
-                    "processing": "queued",
-                }
+                    if indexed.snapchat_media_id:
+                        chat_media_id_map.setdefault(indexed.snapchat_media_id, indexed)
 
-                indexed = IndexedAsset(
-                    asset=asset,
-                    source_path=main_file.resolve(),
-                    overlay_source_path=overlay_file.resolve() if overlay_file else None,
-                    source_type=source_type,
-                    taken_at=taken_at,
-                    snapchat_media_id=self.extract_chat_media_id(stem_id) if source_type == AssetSource.CHAT else None,
-                )
-                indexed_assets.append(indexed)
-
-                if indexed.snapchat_media_id:
-                    chat_media_id_map.setdefault(indexed.snapchat_media_id, indexed)
-
-                if indexed.taken_at is None:
-                    continue
-                date_key = indexed.taken_at.strftime("%Y-%m-%d")
-                if source_type == AssetSource.CHAT:
-                    chat_date_buckets.setdefault(date_key, []).append(indexed)
-                elif source_type == AssetSource.MEMORY:
-                    memory_date_buckets.setdefault(date_key, []).append(indexed)
-                elif source_type == AssetSource.STORY:
-                    story_date_buckets.setdefault(date_key, []).append(indexed)
+                    if indexed.taken_at is None:
+                        continue
+                    date_key = indexed.taken_at.strftime("%Y-%m-%d")
+                    if source_type == AssetSource.CHAT:
+                        chat_date_buckets.setdefault(date_key, []).append(indexed)
+                    elif source_type == AssetSource.MEMORY:
+                        memory_date_buckets.setdefault(date_key, []).append(indexed)
+                    elif source_type == AssetSource.STORY:
+                        story_date_buckets.setdefault(date_key, []).append(indexed)
 
         for bucket in (chat_date_buckets, memory_date_buckets, story_date_buckets):
             for values in bucket.values():
@@ -235,25 +488,30 @@ class IngestionService:
             story_date_buckets=story_date_buckets,
         )
 
-    def parse_chats(self, session: Session, root_path: Path, state: IndexedAssetState) -> None:
-        chat_history_path = self.resolve_json_file(root_path, "chat_history.json")
-        if chat_history_path and chat_history_path.exists():
-            with chat_history_path.open("r", encoding="utf-8") as handle:
-                payload = json.load(handle)
-        else:
-            html_dir = root_path / "html" / "chat_history"
-            payload = self.parse_html_directory(html_dir) if html_dir.exists() else {}
-
+    def parse_chats(
+        self,
+        session: Session,
+        root_paths: list[Path],
+        state: IndexedAssetState,
+        seen_dedupe_keys: set[str],
+    ) -> None:
+        payload = self.load_chat_payload(root_paths)
         if not isinstance(payload, dict):
             return
 
         for conversation_id, content in payload.items():
             if isinstance(content, list):
-                self.parse_chat_message_list(session, str(conversation_id), content, state)
+                self.parse_chat_message_list(session, str(conversation_id), content, state, seen_dedupe_keys)
             elif isinstance(content, dict):
                 for nested_conversation_id, messages in content.items():
                     if isinstance(messages, list):
-                        self.parse_chat_message_list(session, str(nested_conversation_id), messages, state)
+                        self.parse_chat_message_list(
+                            session,
+                            str(nested_conversation_id),
+                            messages,
+                            state,
+                            seen_dedupe_keys,
+                        )
 
     def parse_chat_message_list(
         self,
@@ -261,6 +519,7 @@ class IngestionService:
         conversation_id: str,
         messages: list[dict[str, Any]],
         state: IndexedAssetState,
+        seen_dedupe_keys: set[str],
     ) -> None:
         title = next((entry.get("Conversation Title") for entry in messages if entry.get("Conversation Title")), None)
         thread = self.get_or_create_thread(session, conversation_id, title)
@@ -287,8 +546,11 @@ class IngestionService:
                 ChatMessageSource.CHAT_HISTORY,
                 [linked.asset.id for linked in linked_assets],
             )
+            if dedupe_key in seen_dedupe_keys:
+                continue
             existing = session.scalar(select(ChatMessage).where(ChatMessage.dedupe_key == dedupe_key))
             if existing is not None:
+                seen_dedupe_keys.add(dedupe_key)
                 continue
 
             message = ChatMessage(
@@ -304,14 +566,17 @@ class IngestionService:
             )
             message.assets = [linked.asset for linked in linked_assets]
             session.add(message)
+            seen_dedupe_keys.add(dedupe_key)
 
-    def parse_snap_history(self, session: Session, root_path: Path, state: IndexedAssetState) -> None:
-        snap_history_path = self.resolve_json_file(root_path, "snap_history.json")
-        if not snap_history_path or not snap_history_path.exists():
-            return
-        with snap_history_path.open("r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-        if not isinstance(payload, dict):
+    def parse_snap_history(
+        self,
+        session: Session,
+        root_paths: list[Path],
+        state: IndexedAssetState,
+        seen_dedupe_keys: set[str],
+    ) -> None:
+        payload = self.load_merged_json_payload(root_paths, "snap_history.json", self.merge_conversation_payload)
+        if not payload or not isinstance(payload, dict):
             return
 
         for conversation_id, messages in payload.items():
@@ -347,7 +612,10 @@ class IngestionService:
                     ChatMessageSource.SNAP_HISTORY,
                     [linked_asset.asset.id],
                 )
+                if dedupe_key in seen_dedupe_keys:
+                    continue
                 if session.scalar(select(ChatMessage).where(ChatMessage.dedupe_key == dedupe_key)) is not None:
+                    seen_dedupe_keys.add(dedupe_key)
                     continue
 
                 message = ChatMessage(
@@ -363,8 +631,9 @@ class IngestionService:
                 )
                 message.assets = [linked_asset.asset]
                 session.add(message)
+                seen_dedupe_keys.add(dedupe_key)
 
-    def parse_memories(self, session: Session, root_path: Path, state: IndexedAssetState) -> None:
+    def parse_memories(self, session: Session, root_paths: list[Path], state: IndexedAssetState) -> None:
         memory_assets = [entry for entry in state.all_assets if entry.source_type == AssetSource.MEMORY]
         if not memory_assets:
             return
@@ -375,12 +644,8 @@ class IngestionService:
             session.add(collection)
             session.flush()
 
-        memories_path = self.resolve_json_file(root_path, "memories_history.json")
-        items = []
-        if memories_path and memories_path.exists():
-            with memories_path.open("r", encoding="utf-8") as handle:
-                payload = json.load(handle)
-            items = payload.get("Saved Media", []) if isinstance(payload, dict) else []
+        payload = self.load_merged_json_payload(root_paths, "memories_history.json", self.merge_memories_payload)
+        items = payload.get("Saved Media", []) if isinstance(payload, dict) else []
 
         assigned_assets: list[tuple[IndexedAsset, dict[str, Any] | None]] = []
         if items:
@@ -417,22 +682,17 @@ class IngestionService:
             )
             position += 1
 
-    def parse_stories(self, session: Session, root_path: Path, state: IndexedAssetState) -> None:
+    def parse_stories(self, session: Session, root_paths: list[Path], state: IndexedAssetState) -> None:
         story_assets = [entry for entry in state.all_assets if entry.source_type == AssetSource.STORY]
         if not story_assets:
             return
 
-        story_json = None
-        for candidate in ("stories_history.json", "story_history.json", "stories.json"):
-            story_json = self.resolve_json_file(root_path, candidate)
-            if story_json and story_json.exists():
-                break
-
         entries: list[dict[str, Any]] = []
-        if story_json and story_json.exists():
-            with story_json.open("r", encoding="utf-8") as handle:
-                payload = json.load(handle)
+        for candidate in ("stories_history.json", "story_history.json", "stories.json"):
+            payload = self.load_merged_json_payload(root_paths, candidate, self.merge_generic_json_payload)
             entries = self.flatten_story_payload(payload)
+            if entries:
+                break
 
         if not entries:
             collection = self.get_or_create_story_collection(session, "Stories", StoryType.UNKNOWN, None)
@@ -582,6 +842,37 @@ class IngestionService:
                     items.extend(entry for entry in value if isinstance(entry, dict))
             return items
         return []
+
+    def load_chat_payload(self, root_paths: list[Path]) -> dict[str, Any]:
+        merged_payload: dict[str, Any] = {}
+        for root_path in root_paths:
+            chat_history_path = self.resolve_json_file(root_path, "chat_history.json")
+            if chat_history_path and chat_history_path.exists():
+                with chat_history_path.open("r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+            else:
+                html_dir = root_path / "html" / "chat_history"
+                payload = self.parse_html_directory(html_dir) if html_dir.exists() else {}
+
+            merged_payload = self.merge_conversation_payload(merged_payload, payload)
+
+        return merged_payload
+
+    def load_merged_json_payload(
+        self,
+        root_paths: list[Path],
+        filename: str,
+        merge_function: Callable[[Any, Any], Any],
+    ) -> Any:
+        merged_payload: Any = None
+        for root_path in root_paths:
+            json_path = self.resolve_json_file(root_path, filename)
+            if not json_path or not json_path.exists():
+                continue
+            with json_path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            merged_payload = payload if merged_payload is None else merge_function(merged_payload, payload)
+        return merged_payload
 
     @staticmethod
     def resolve_json_file(root_path: Path, filename: str) -> Path | None:

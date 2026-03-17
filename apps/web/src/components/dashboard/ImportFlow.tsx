@@ -1,5 +1,13 @@
-import { LoaderCircle, RefreshCw, UploadCloud } from "lucide-react";
-import { useId, useState, type ChangeEvent, type DragEvent } from "react";
+import { Ban, LoaderCircle, RefreshCw, UploadCloud } from "lucide-react";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+
+import {
+  isTerminalIngestionStatus,
+  useCancelIngestionJob,
+  useIngestionJob,
+  type IngestionJob,
+  type IngestionStartResponse,
+} from "../../hooks/useIngestionJob";
 
 type ImportFlowProps = {
   onRefreshDashboard: () => void;
@@ -9,14 +17,113 @@ type ImportFlowProps = {
 type UploadState =
   | { stage: "idle"; message?: string }
   | { stage: "uploading"; message: string }
-  | { stage: "success"; message: string; jobIds: string[] }
   | { stage: "error"; message: string };
+
+const ACTIVE_INGESTION_JOB_STORAGE_KEY = "snapcapsule:active-ingestion-job";
+
+function readPersistedJobId() {
+  return typeof window === "undefined" ? null : window.localStorage.getItem(ACTIVE_INGESTION_JOB_STORAGE_KEY);
+}
+
+function persistJobId(jobId: string | null) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (jobId) {
+    window.localStorage.setItem(ACTIVE_INGESTION_JOB_STORAGE_KEY, jobId);
+    return;
+  }
+
+  window.localStorage.removeItem(ACTIVE_INGESTION_JOB_STORAGE_KEY);
+}
+
+function statusHeading(status: IngestionJob["status"]) {
+  switch (status) {
+    case "queued":
+      return "Queued for background work";
+    case "extracting":
+      return "Extracting uploaded archives";
+    case "parsing":
+      return "Parsing Snapchat export data";
+    case "processing_media":
+      return "Processing media files";
+    case "completed":
+      return "Background ingestion completed";
+    case "canceled":
+      return "Background ingestion canceled";
+    case "failed":
+      return "Background ingestion failed";
+    default:
+      return "Background ingestion running";
+  }
+}
+
+function statusTone(status: IngestionJob["status"]) {
+  if (status === "completed") {
+    return {
+      ring: "border-emerald-300/20 bg-emerald-300/[0.12] text-emerald-100",
+      bar: "bg-emerald-300",
+      chip: "border-emerald-300/20 bg-emerald-300/[0.1] text-emerald-100",
+    };
+  }
+  if (status === "failed" || status === "canceled") {
+    return {
+      ring: "border-rose-300/20 bg-rose-300/[0.12] text-rose-100",
+      bar: "bg-rose-300",
+      chip: "border-rose-300/20 bg-rose-300/[0.1] text-rose-100",
+    };
+  }
+  return {
+    ring: "border-sky-300/20 bg-sky-300/[0.12] text-sky-100",
+    bar: "bg-sky-300",
+    chip: "border-sky-300/20 bg-sky-300/[0.1] text-sky-100",
+  };
+}
 
 export default function ImportFlow({ onRefreshDashboard, variant = "full" }: ImportFlowProps) {
   const inputId = useId();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>({ stage: "idle" });
+  const [activeJobId, setActiveJobId] = useState<string | null>(() => readPersistedJobId());
+  const [lastFinishedJob, setLastFinishedJob] = useState<IngestionJob | null>(null);
+  const jobQuery = useIngestionJob(activeJobId);
+  const cancelMutation = useCancelIngestionJob();
   const isCompact = variant === "compact";
+  const lastRefreshedCompletedJobId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!jobQuery.data) {
+      return;
+    }
+
+    if (!isTerminalIngestionStatus(jobQuery.data.status)) {
+      return;
+    }
+
+    persistJobId(null);
+    setLastFinishedJob(jobQuery.data);
+    setActiveJobId(null);
+    setUploadState({ stage: "idle" });
+
+    if (jobQuery.data.status === "completed" && lastRefreshedCompletedJobId.current !== jobQuery.data.id) {
+      lastRefreshedCompletedJobId.current = jobQuery.data.id;
+      onRefreshDashboard();
+    }
+  }, [jobQuery.data, onRefreshDashboard]);
+
+  useEffect(() => {
+    if (!jobQuery.isError || !activeJobId) {
+      return;
+    }
+
+    persistJobId(null);
+    setActiveJobId(null);
+    setUploadState({
+      stage: "error",
+      message: jobQuery.error instanceof Error ? jobQuery.error.message : "Failed to resume ingestion status.",
+    });
+  }, [activeJobId, jobQuery.error, jobQuery.isError]);
 
   async function uploadArchives(files: File[]) {
     const validFiles = files.filter((file) => file.name.toLowerCase().endsWith(".zip"));
@@ -26,74 +133,55 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
     }
 
     const rejectedCount = files.length - validFiles.length;
-    const jobIds: string[] = [];
-    const failures: string[] = [];
-
-    for (const [index, file] of validFiles.entries()) {
-      const formData = new FormData();
-      formData.append("archive", file);
-
-      setUploadState({
-        stage: "uploading",
-        message:
-          validFiles.length === 1
-            ? "Uploading to server..."
-            : `Uploading ${index + 1} of ${validFiles.length}: ${file.name}`,
-      });
-
-      try {
-        const response = await fetch("/api/ingest", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          let message = `Upload failed with ${response.status}`;
-          try {
-            const payload = (await response.json()) as { detail?: string };
-            if (payload.detail) {
-              message = payload.detail;
-            }
-          } catch {
-            // Keep the fallback message.
-          }
-          throw new Error(message);
-        }
-
-        const payload = (await response.json()) as { job_id: string };
-        jobIds.push(payload.job_id);
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : "Upload failed";
-        failures.push(`${file.name}: ${reason}`);
-      }
+    const formData = new FormData();
+    for (const file of validFiles) {
+      formData.append("archives", file);
     }
 
-    if (jobIds.length > 0) {
-      const messageParts = [
-        `${jobIds.length} archive${jobIds.length === 1 ? "" : "s"} queued for background processing.`,
-        "You can keep adding more Snapchat exports whenever you want.",
-      ];
-
-      if (rejectedCount > 0) {
-        messageParts.push(`${rejectedCount} non-ZIP file${rejectedCount === 1 ? " was" : "s were"} ignored.`);
-      }
-
-      if (failures.length > 0) {
-        messageParts.push(`${failures.length} upload${failures.length === 1 ? "" : "s"} failed.`);
-      }
-
-      setUploadState({
-        stage: "success",
-        jobIds,
-        message: messageParts.join(" "),
-      });
-      return;
-    }
-
+    setLastFinishedJob(null);
     setUploadState({
-      stage: "error",
-      message: failures.join(" "),
+      stage: "uploading",
+      message:
+        validFiles.length === 1
+          ? "Uploading archive to server..."
+          : `Uploading ${validFiles.length} archives to one ingestion job...`,
     });
+
+    try {
+      const response = await fetch("/api/ingest", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let message = `Upload failed with ${response.status}`;
+        try {
+          const payload = (await response.json()) as { detail?: string };
+          if (payload.detail) {
+            message = payload.detail;
+          }
+        } catch {
+          // Keep the fallback message.
+        }
+        throw new Error(message);
+      }
+
+      const payload = (await response.json()) as IngestionStartResponse;
+      persistJobId(payload.job_id);
+      setActiveJobId(payload.job_id);
+      setUploadState({
+        stage: "idle",
+        message:
+          rejectedCount > 0
+            ? `${rejectedCount} non-ZIP file${rejectedCount === 1 ? " was" : "s were"} ignored.`
+            : undefined,
+      });
+    } catch (error) {
+      setUploadState({
+        stage: "error",
+        message: error instanceof Error ? error.message : "Upload failed",
+      });
+    }
   }
 
   function handleFiles(fileList: FileList | null) {
@@ -115,19 +203,53 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
     handleFiles(event.dataTransfer.files);
   }
 
+  function handleDragOver(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    if (showLiveJob || uploadState.stage === "uploading") {
+      return;
+    }
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+    setIsDragging(false);
+  }
+
+  function handleGuardedDrop(event: DragEvent<HTMLLabelElement>) {
+    if (showLiveJob || uploadState.stage === "uploading") {
+      event.preventDefault();
+      return;
+    }
+    handleDrop(event);
+  }
+
+  const liveJob = jobQuery.data ?? lastFinishedJob;
+  const liveJobTone = liveJob ? statusTone(liveJob.status) : null;
+  const isResumingActiveJob = uploadState.stage !== "uploading" && activeJobId !== null && jobQuery.isLoading && !liveJob;
+  const showLiveJob = uploadState.stage !== "uploading" && (liveJob !== null || isResumingActiveJob);
+
   return (
     <section className={`mx-auto flex w-full ${isCompact ? "max-w-none" : "max-w-[1520px]"} flex-col gap-6`}>
       {!isCompact ? (
         <div className="overflow-hidden rounded-[2.25rem] border border-white/10 bg-[linear-gradient(135deg,_rgba(7,14,24,0.98),_rgba(7,25,40,0.92),_rgba(4,8,14,0.98))] shadow-2xl shadow-black/30">
           <div className="grid gap-8 px-6 py-8 md:px-10 md:py-10 xl:grid-cols-[1.05fr_0.95fr]">
             <div className="space-y-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.34em] text-sky-200/70">First Import</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.34em] text-sky-200/70">
+                {showLiveJob ? "Ingestion Activity" : "First Import"}
+              </p>
               <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                Bring your Snapchat archive online without touching server paths.
+                {showLiveJob
+                  ? "One background job now tracks extraction, parsing, and media processing across every uploaded ZIP."
+                  : "Bring your Snapchat archive online without touching server paths."}
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-slate-300">
-                Drop the exported Snapchat ZIP file here and SnapCapsule will upload it, queue the ingestion job, and
-                process your photos and videos in the background.
+                {showLiveJob
+                  ? "Refreshes are safe now. The dashboard can reconnect to the active background job and continue showing progress until the ingest finishes, fails, or is canceled."
+                  : "Drop one or more exported Snapchat ZIP files here and SnapCapsule will save them, queue a single background ingestion job, and process the archive asynchronously."}
               </p>
             </div>
 
@@ -135,13 +257,13 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">What Happens Next</p>
               <div className="mt-4 grid gap-3 text-sm text-slate-300">
                 <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3">
-                  1. The ZIP uploads to the backend over the web interface.
+                  1. Every ZIP in the batch is stored under one ingestion job.
                 </div>
                 <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3">
-                  2. Background workers parse chats, memories, and media files.
+                  2. Background workers extract and merge the export into one unified workspace.
                 </div>
                 <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3">
-                  3. Thumbnails are generated so the grid stays fast once the archive is ready.
+                  3. Status polling resumes automatically after refresh until the job reaches a terminal state.
                 </div>
               </div>
             </div>
@@ -151,20 +273,12 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
 
       <label
         htmlFor={inputId}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={(event) => {
-          event.preventDefault();
-          if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
-            return;
-          }
-          setIsDragging(false);
-        }}
-        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleGuardedDrop}
         className={[
-          "group flex cursor-pointer flex-col items-center justify-center rounded-[2rem] border border-dashed px-6 py-8 text-center transition",
+          "group flex flex-col items-center justify-center rounded-[2rem] border border-dashed px-6 py-8 text-center transition",
+          showLiveJob || uploadState.stage === "uploading" ? "cursor-default" : "cursor-pointer",
           isCompact ? "min-h-[20rem]" : "min-h-[30rem]",
           isDragging
             ? "border-sky-300/50 bg-sky-300/[0.08] shadow-[0_25px_60px_rgba(8,47,73,0.35)]"
@@ -178,6 +292,7 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
           multiple
           className="sr-only"
           onChange={handleInputChange}
+          disabled={showLiveJob || uploadState.stage === "uploading"}
         />
 
         {uploadState.stage === "uploading" ? (
@@ -190,58 +305,124 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
             >
               <LoaderCircle className="h-9 w-9 animate-spin" />
             </div>
-            <h2 className={`mt-6 font-semibold text-white ${isCompact ? "text-xl" : "text-2xl"}`}>
-              {uploadState.message}
-            </h2>
+            <h2 className={`mt-6 font-semibold text-white ${isCompact ? "text-xl" : "text-2xl"}`}>{uploadState.message}</h2>
             <p className="mt-3 max-w-xl text-sm leading-7 text-slate-400">
-              The archive is being transferred into the backend container. Once the upload finishes, processing will
-              continue asynchronously.
+              Files are being copied to the backend now. As soon as that finishes, the API returns one job ID and the
+              browser can reconnect to it after any refresh.
             </p>
           </div>
-        ) : uploadState.stage === "success" ? (
-          <div className="flex max-w-2xl flex-col items-center">
+        ) : isResumingActiveJob ? (
+          <div className="flex flex-col items-center">
             <div
               className={[
-                "flex items-center justify-center rounded-full border border-emerald-300/20 bg-emerald-300/[0.12] text-emerald-100",
+                "flex items-center justify-center rounded-full border border-sky-300/20 bg-sky-300/[0.12] text-sky-100",
                 isCompact ? "h-16 w-16" : "h-20 w-20",
               ].join(" ")}
             >
-              <UploadCloud className="h-9 w-9" />
+              <LoaderCircle className="h-9 w-9 animate-spin" />
             </div>
             <h2 className={`mt-6 font-semibold text-white ${isCompact ? "text-xl" : "text-2xl"}`}>
-              Background processing started
+              Reconnecting to background job
             </h2>
-            <p className="mt-3 text-sm leading-7 text-slate-300">{uploadState.message}</p>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              {uploadState.jobIds.slice(0, 3).map((jobId) => (
-                <p
-                  key={jobId}
-                  className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400"
-                >
-                  Job {jobId}
-                </p>
-              ))}
-              {uploadState.jobIds.length > 3 ? (
+            <p className="mt-3 max-w-xl text-sm leading-7 text-slate-400">
+              The dashboard found an active ingestion job in progress and is restoring its current status now.
+            </p>
+          </div>
+        ) : showLiveJob && liveJob && liveJobTone ? (
+          <div className="flex max-w-2xl flex-col items-center">
+            <div
+              className={[
+                "flex items-center justify-center rounded-full border",
+                liveJobTone.ring,
+                isCompact ? "h-16 w-16" : "h-20 w-20",
+              ].join(" ")}
+            >
+              {isTerminalIngestionStatus(liveJob.status) ? (
+                liveJob.status === "canceled" ? (
+                  <Ban className="h-9 w-9" />
+                ) : (
+                  <UploadCloud className="h-9 w-9" />
+                )
+              ) : (
+                <LoaderCircle className="h-9 w-9 animate-spin" />
+              )}
+            </div>
+            <h2 className={`mt-6 font-semibold text-white ${isCompact ? "text-xl" : "text-2xl"}`}>
+              {statusHeading(liveJob.status)}
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
+              {liveJob.error_message ?? liveJob.detail_message ?? "The ingestion worker is updating the archive."}
+            </p>
+            <div className="mt-6 w-full max-w-xl">
+              <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                <span>Progress</span>
+                <span>{liveJob.progress_percent}%</span>
+              </div>
+              <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className={`h-full rounded-full transition-[width] duration-300 ${liveJobTone.bar}`}
+                  style={{ width: `${Math.max(4, liveJob.progress_percent)}%` }}
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              <p className={`rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] ${liveJobTone.chip}`}>
+                Job {liveJob.id}
+              </p>
+              {liveJob.raw_metadata?.archive_count ? (
                 <p className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                  +{uploadState.jobIds.length - 3} more
+                  {liveJob.raw_metadata.archive_count} archive{liveJob.raw_metadata.archive_count === 1 ? "" : "s"}
+                </p>
+              ) : null}
+              {liveJob.total_assets > 0 ? (
+                <p className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                  {liveJob.processed_assets}/{liveJob.total_assets} processed
+                </p>
+              ) : null}
+              {liveJob.failed_assets > 0 ? (
+                <p className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                  {liveJob.failed_assets} failed
                 </p>
               ) : null}
             </div>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={onRefreshDashboard}
-                className="inline-flex items-center gap-2 rounded-[1rem] border border-sky-300/20 bg-sky-300/[0.1] px-4 py-3 text-sm font-medium text-sky-100 transition hover:border-sky-300/35 hover:bg-sky-300/[0.16]"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Refresh dashboard
-              </button>
-              <label
-                htmlFor={inputId}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-white/15 hover:bg-white/[0.08]"
-              >
-                Upload more ZIPs
-              </label>
+              {isTerminalIngestionStatus(liveJob.status) ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={onRefreshDashboard}
+                    className="inline-flex items-center gap-2 rounded-[1rem] border border-sky-300/20 bg-sky-300/[0.1] px-4 py-3 text-sm font-medium text-sky-100 transition hover:border-sky-300/35 hover:bg-sky-300/[0.16]"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh dashboard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLastFinishedJob(null);
+                      setUploadState({ stage: "idle" });
+                    }}
+                    className="inline-flex items-center gap-2 rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-white/15 hover:bg-white/[0.08]"
+                  >
+                    Upload more ZIPs
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!activeJobId) {
+                      return;
+                    }
+                    cancelMutation.mutate(activeJobId);
+                  }}
+                  disabled={cancelMutation.isPending}
+                  className="inline-flex items-center gap-2 rounded-[1rem] border border-rose-300/20 bg-rose-300/[0.1] px-4 py-3 text-sm font-medium text-rose-100 transition hover:border-rose-300/35 hover:bg-rose-300/[0.16] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {cancelMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+                  Cancel ingestion
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -255,18 +436,21 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
               <UploadCloud className="h-10 w-10" />
             </div>
             <h2 className={`mt-6 font-semibold tracking-tight text-white ${isCompact ? "text-2xl" : "text-3xl"}`}>
-              {isCompact
-                ? "Add more Snapchat Export .zip files"
-                : "Drag and drop your Snapchat Export .zip file here"}
+              {isCompact ? "Add more Snapchat Export .zip files" : "Drag and drop your Snapchat Export .zip files here"}
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400">
               {isCompact
-                ? "Drop one or more ZIP files here, or click to browse. New exports can be added to the archive whenever you need."
-                : "You can also click anywhere in this area to browse for one or more ZIP files from your computer."}
+                ? "Drop one or more ZIP files here, or click to browse. Files uploaded together are processed inside one unified workspace."
+                : "You can also click anywhere in this area to browse for one or more ZIP files from your computer. A single background job will track the whole batch."}
             </p>
             <div className="mt-6 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Multiple ZIP uploads supported
+              Multi-part ZIP batches supported
             </div>
+            {uploadState.stage !== "error" && uploadState.message ? (
+              <div className="mt-6 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
+                {uploadState.message}
+              </div>
+            ) : null}
             {uploadState.stage === "error" ? (
               <div className="mt-6 rounded-[1.2rem] border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
                 {uploadState.message}

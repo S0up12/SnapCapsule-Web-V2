@@ -30,6 +30,7 @@ def init_database() -> None:
             connection.execute(text("ALTER TABLE assets ADD COLUMN tags JSON NOT NULL DEFAULT '[]'::json"))
 
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_assets_is_favorite ON assets (is_favorite)"))
+        connection.execute(text("ALTER TYPE ingestion_job_status ADD VALUE IF NOT EXISTS 'canceled'"))
 
 
 def get_db_session() -> Generator[Session, None, None]:

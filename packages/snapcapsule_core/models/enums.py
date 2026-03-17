@@ -37,4 +37,5 @@ class IngestionJobStatus(str, Enum):
     PARSING = "parsing"
     PROCESSING_MEDIA = "processing_media"
     COMPLETED = "completed"
+    CANCELED = "canceled"
     FAILED = "failed"

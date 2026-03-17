@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import case, exists, func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from snapcapsule_core.models import Asset, ChatMessage, ChatThread, chat_message_assets
@@ -84,32 +84,40 @@ def _message_preview(thread: ChatThread, sender: str | None, body: str | None, m
 
 
 def list_chat_threads(session: Session, filters: ChatFilters) -> list[ChatConversationRecord]:
-    latest_message_id = (
-        select(ChatMessage.id)
-        .where(ChatMessage.thread_id == ChatThread.id)
-        .order_by(ChatMessage.sent_at.desc(), ChatMessage.id.desc())
-        .limit(1)
-        .scalar_subquery()
+    ranked_messages = (
+        select(
+            ChatMessage.id.label("message_id"),
+            ChatMessage.thread_id.label("thread_id"),
+            ChatMessage.sent_at.label("sent_at"),
+            ChatMessage.sender.label("sender"),
+            ChatMessage.body.label("body"),
+            func.row_number()
+            .over(
+                partition_by=ChatMessage.thread_id,
+                order_by=(ChatMessage.sent_at.desc(), ChatMessage.id.desc()),
+            )
+            .label("message_rank"),
+        )
+        .subquery()
     )
-    latest_at = (
-        select(ChatMessage.sent_at)
-        .where(ChatMessage.id == latest_message_id)
-        .scalar_subquery()
+    latest_messages = (
+        select(
+            ranked_messages.c.message_id,
+            ranked_messages.c.thread_id,
+            ranked_messages.c.sent_at,
+            ranked_messages.c.sender,
+            ranked_messages.c.body,
+        )
+        .where(ranked_messages.c.message_rank == 1)
+        .subquery()
     )
-    latest_sender = (
-        select(ChatMessage.sender)
-        .where(ChatMessage.id == latest_message_id)
-        .scalar_subquery()
-    )
-    latest_body = (
-        select(ChatMessage.body)
-        .where(ChatMessage.id == latest_message_id)
-        .scalar_subquery()
-    )
-    latest_media_count = (
-        select(func.count(chat_message_assets.c.asset_id))
-        .where(chat_message_assets.c.message_id == latest_message_id)
-        .scalar_subquery()
+    latest_media_counts = (
+        select(
+            chat_message_assets.c.message_id.label("message_id"),
+            func.count(chat_message_assets.c.asset_id).label("media_count"),
+        )
+        .group_by(chat_message_assets.c.message_id)
+        .subquery()
     )
     has_media = exists(
         select(1)
@@ -123,11 +131,15 @@ def list_chat_threads(session: Session, filters: ChatFilters) -> list[ChatConver
         ChatThread.title,
         ChatThread.external_id,
         ChatThread.is_group,
-        latest_at.label("latest_at"),
-        latest_sender.label("latest_sender"),
-        latest_body.label("latest_body"),
-        latest_media_count.label("latest_media_count"),
+        latest_messages.c.sent_at.label("latest_at"),
+        latest_messages.c.sender.label("latest_sender"),
+        latest_messages.c.body.label("latest_body"),
+        func.coalesce(latest_media_counts.c.media_count, 0).label("latest_media_count"),
         has_media.label("has_media"),
+    )
+    statement = (
+        statement.outerjoin(latest_messages, latest_messages.c.thread_id == ChatThread.id)
+        .outerjoin(latest_media_counts, latest_media_counts.c.message_id == latest_messages.c.message_id)
     )
 
     if filters.search:
@@ -139,7 +151,7 @@ def list_chat_threads(session: Session, filters: ChatFilters) -> list[ChatConver
     if filters.filter_name == "has_media":
         statement = statement.where(has_media)
 
-    order_column = latest_at.asc() if filters.sort == "oldest" else latest_at.desc()
+    order_column = latest_messages.c.sent_at.asc() if filters.sort == "oldest" else latest_messages.c.sent_at.desc()
     statement = statement.order_by(order_column.nullslast(), ChatThread.title.asc(), ChatThread.external_id.asc())
 
     rows = session.execute(statement).all()
