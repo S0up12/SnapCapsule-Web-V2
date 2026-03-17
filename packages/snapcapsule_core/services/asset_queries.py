@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
 from snapcapsule_core.models import Asset
-from snapcapsule_core.models.enums import MediaType
+from snapcapsule_core.models.enums import AssetSource, MediaType
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +62,7 @@ class AssetMutationRecord:
 
 def _base_asset_filters(filters: TimelineFilters):
     clauses = [
+        Asset.source_type == AssetSource.MEMORY,
         Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)),
         Asset.thumbnail_path.is_not(None),
         Asset.original_path.is_not(None),
@@ -129,6 +130,7 @@ def get_timeline_summary(session: Session, filters: TimelineFilters) -> Timeline
 def list_available_tags(session: Session) -> list[str]:
     rows = session.execute(
         select(Asset.tags).where(
+            Asset.source_type == AssetSource.MEMORY,
             Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)),
             Asset.tags.is_not(None),
         )
