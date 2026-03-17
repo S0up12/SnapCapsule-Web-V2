@@ -1,4 +1,4 @@
-import { BarChart3, Film, ImageIcon, LayoutDashboard } from "lucide-react";
+import { Film, ImageIcon, LayoutDashboard } from "lucide-react";
 
 import type { DashboardStats as DashboardStatsData } from "../../hooks/useDashboardStats";
 import ImportFlow from "./ImportFlow";
@@ -36,23 +36,21 @@ export default function DashboardStats({ stats, onRefreshDashboard }: DashboardS
       <div className="overflow-hidden rounded-[2.25rem] border border-white/10 bg-[linear-gradient(135deg,_rgba(9,17,28,0.98),_rgba(10,31,46,0.92),_rgba(5,9,16,0.98))] shadow-2xl shadow-black/30">
         <div className="grid gap-8 px-6 py-8 md:px-10 md:py-10 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.34em] text-sky-200/70">Welcome Back</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.34em] text-sky-200/70">Library Ready</p>
             <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-              Your Snapchat archive is ready to explore and keep growing.
+              Your Snapchat archive is ready to browse.
             </h1>
             <p className="max-w-2xl text-sm leading-7 text-slate-300">
-              This dashboard will become the control room for ingestion activity, media trends, and archive health. For
-              now, it confirms the core asset totals and keeps import tools visible even after the first ingest.
+              Keep adding new exports whenever you want. Your existing memories stay available while new imports are processed in the background.
             </p>
           </div>
 
           <div className="rounded-[1.9rem] border border-white/10 bg-white/[0.045] p-5 backdrop-blur">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Archive Status</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">At A Glance</p>
             <div className="mt-4 rounded-[1.35rem] border border-emerald-300/10 bg-emerald-300/[0.08] px-5 py-4">
-              <p className="text-sm font-medium text-emerald-100">Archive ready and still open for new imports</p>
+              <p className="text-sm font-medium text-emerald-100">Imports can be added any time</p>
               <p className="mt-2 text-sm leading-6 text-emerald-50/85">
-                Processed assets are available to the gallery, thumbnails are present, and you can keep adding new
-                Snapchat export ZIP files whenever you need to update the archive.
+                Your photos, videos, and chats stay available while you continue building the archive with more Snapchat exports.
               </p>
             </div>
           </div>
@@ -86,47 +84,18 @@ export default function DashboardStats({ stats, onRefreshDashboard }: DashboardS
         </section>
 
         <section className="rounded-[1.7rem] border border-white/10 bg-white/[0.04] p-6 shadow-xl shadow-black/20">
-          <div className="flex items-center gap-3 text-slate-200">
-            <BarChart3 className="h-5 w-5 text-sky-200" />
-            <h2 className="text-lg font-semibold">Media Timeline Overview</h2>
-          </div>
-          <div className="mt-6 h-64 rounded-[1.35rem] border border-dashed border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01))]" />
-        </section>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <section className="rounded-[1.7rem] border border-white/10 bg-white/[0.04] p-6 shadow-xl shadow-black/20">
-          <h2 className="text-lg font-semibold text-white">Library Coverage</h2>
+          <h2 className="text-lg font-semibold text-white">What You Have</h2>
           <div className="mt-6 grid gap-4">
             <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Ready For Browsing</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Library Size</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                {stats.total_memories.toLocaleString()} total web-ready assets currently available to the gallery.
+                {stats.total_memories.toLocaleString()} memories are ready to browse across the timeline and viewer.
               </p>
             </div>
-            <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Incremental Archive Growth</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                New ZIP uploads can be added at any time, so the archive can grow as you export more Snapchat data.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-[1.7rem] border border-white/10 bg-white/[0.04] p-6 shadow-xl shadow-black/20">
-          <h2 className="text-lg font-semibold text-white">Processing Snapshot</h2>
-          <div className="mt-6 grid gap-4">
             <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Current Mix</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                {stats.total_photos.toLocaleString()} photos and {stats.total_videos.toLocaleString()} videos are ready
-                for the timeline and viewer.
-              </p>
-            </div>
-            <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Next Phase</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                These panels are reserved for import history, queue throughput, and future timeline analytics.
+                {stats.total_photos.toLocaleString()} photos and {stats.total_videos.toLocaleString()} videos are available right now.
               </p>
             </div>
           </div>

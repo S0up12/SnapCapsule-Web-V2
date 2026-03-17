@@ -243,27 +243,27 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
               </p>
               <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
                 {showLiveJob
-                  ? "One background job now tracks extraction, parsing, and media processing across every uploaded ZIP."
-                  : "Bring your Snapchat archive online without touching server paths."}
+                  ? "Your import is running in the background."
+                  : "Add your Snapchat export ZIP files."}
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-slate-300">
                 {showLiveJob
-                  ? "Refreshes are safe now. The dashboard can reconnect to the active background job and continue showing progress until the ingest finishes, fails, or is canceled."
-                  : "Drop one or more exported Snapchat ZIP files here and SnapCapsule will save them, queue a single background ingestion job, and process the archive asynchronously."}
+                  ? "You can refresh the page at any time and SnapCapsule will reconnect to the current import until it finishes."
+                  : "Drop one or more exported Snapchat ZIP files here and SnapCapsule will process them in the background."}
               </p>
             </div>
 
             <div className="rounded-[1.9rem] border border-sky-300/10 bg-white/[0.045] p-5 backdrop-blur">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">What Happens Next</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">How It Works</p>
               <div className="mt-4 grid gap-3 text-sm text-slate-300">
                 <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3">
-                  1. Every ZIP in the batch is stored under one ingestion job.
+                  1. Upload one ZIP or a full multi-part batch together.
                 </div>
                 <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3">
-                  2. Background workers extract and merge the export into one unified workspace.
+                  2. SnapCapsule processes the import in the background.
                 </div>
                 <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3">
-                  3. Status polling resumes automatically after refresh until the job reaches a terminal state.
+                  3. You can come back later and keep using the app while it finishes.
                 </div>
               </div>
             </div>
@@ -307,8 +307,7 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
             </div>
             <h2 className={`mt-6 font-semibold text-white ${isCompact ? "text-xl" : "text-2xl"}`}>{uploadState.message}</h2>
             <p className="mt-3 max-w-xl text-sm leading-7 text-slate-400">
-              Files are being copied to the backend now. As soon as that finishes, the API returns one job ID and the
-              browser can reconnect to it after any refresh.
+              Your files are being uploaded now. Once that is done, the import will continue in the background.
             </p>
           </div>
         ) : isResumingActiveJob ? (
@@ -322,10 +321,10 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
               <LoaderCircle className="h-9 w-9 animate-spin" />
             </div>
             <h2 className={`mt-6 font-semibold text-white ${isCompact ? "text-xl" : "text-2xl"}`}>
-              Reconnecting to background job
+              Restoring import progress
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-7 text-slate-400">
-              The dashboard found an active ingestion job in progress and is restoring its current status now.
+              SnapCapsule found an active import and is restoring its current progress.
             </p>
           </div>
         ) : showLiveJob && liveJob && liveJobTone ? (
@@ -366,14 +365,6 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
               </div>
             </div>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              <p className={`rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] ${liveJobTone.chip}`}>
-                Job {liveJob.id}
-              </p>
-              {liveJob.raw_metadata?.archive_count ? (
-                <p className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                  {liveJob.raw_metadata.archive_count} archive{liveJob.raw_metadata.archive_count === 1 ? "" : "s"}
-                </p>
-              ) : null}
               {liveJob.total_assets > 0 ? (
                 <p className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                   {liveJob.processed_assets}/{liveJob.total_assets} processed
@@ -440,8 +431,8 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400">
               {isCompact
-                ? "Drop one or more ZIP files here, or click to browse. Files uploaded together are processed inside one unified workspace."
-                : "You can also click anywhere in this area to browse for one or more ZIP files from your computer. A single background job will track the whole batch."}
+                ? "Drop one or more ZIP files here, or click to browse."
+                : "You can also click anywhere in this area to browse for one or more ZIP files from your computer."}
             </p>
             <div className="mt-6 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
               Multi-part ZIP batches supported

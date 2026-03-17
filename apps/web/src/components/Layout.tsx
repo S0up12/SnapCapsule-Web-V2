@@ -13,22 +13,22 @@ export default function Layout() {
     "/": {
       eyebrow: "Overview",
       title: "Dashboard",
-      subtitle: "The main shell for imports, archive health, and quick access into your Snapchat data.",
+      subtitle: "Import more data and jump back into your archive.",
     },
     "/chats": {
       eyebrow: "Conversations",
       title: "Chats",
-      subtitle: "Browse conversation history, media attachments, and contact-driven timelines.",
+      subtitle: "Read conversations and review shared media.",
     },
     "/memories": {
       eyebrow: "Archive",
       title: "Memories",
-      subtitle: "Scroll a dense, virtualized gallery of photos and videos without paying the RAM cost up front.",
+      subtitle: "Browse your saved photos and videos.",
     },
     "/settings": {
       eyebrow: "Workspace",
       title: "Settings",
-      subtitle: "Tune preferences, maintenance actions, and development-friendly archive controls.",
+      subtitle: "Adjust preferences and manage your library.",
     },
   };
 
@@ -40,7 +40,7 @@ export default function Layout() {
         <aside
           className={[
             "hidden shrink-0 border-r border-slate-200/70 bg-white/75 p-5 backdrop-blur dark:border-white/10 dark:bg-slate-950/70 xl:block",
-            sidebarCollapsed ? "w-28" : "w-[19rem]",
+            sidebarCollapsed ? "w-24" : "w-[16.5rem]",
           ].join(" ")}
         >
           <Sidebar

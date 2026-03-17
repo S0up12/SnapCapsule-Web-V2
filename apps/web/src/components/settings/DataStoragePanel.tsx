@@ -2,11 +2,9 @@ import { CheckCircle2, RotateCcw, Trash2 } from "lucide-react";
 
 import SettingsCard from "./SettingsCard";
 import SettingRow from "./SettingRow";
-import type { AppSettings } from "../../hooks/useSettings";
 import type { SystemActionResponse } from "../../hooks/useSystemStatus";
 
 type DataStoragePanelProps = {
-  settings: AppSettings;
   isRescanning: boolean;
   isResetting: boolean;
   onRescan: () => Promise<void>;
@@ -14,17 +12,7 @@ type DataStoragePanelProps = {
   actionFeedback: SystemActionResponse | null;
 };
 
-function PathPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1.2rem] border border-slate-200/70 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-slate-950/55">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</p>
-      <p className="mt-2 break-all font-mono text-xs leading-6 text-slate-700 dark:text-slate-300">{value}</p>
-    </div>
-  );
-}
-
 export default function DataStoragePanel({
-  settings,
   isRescanning,
   isResetting,
   onRescan,
@@ -34,24 +22,13 @@ export default function DataStoragePanel({
   return (
     <div className="grid gap-6">
       <SettingsCard
-        eyebrow="Data & Storage"
-        title="Archive storage"
-        description="These paths reflect the mounted Docker volumes currently backing your imported media."
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <PathPill label="Raw Media" value={settings.storage.raw_media_dir} />
-          <PathPill label="Thumbnails" value={settings.storage.thumbnail_dir} />
-        </div>
-      </SettingsCard>
-
-      <SettingsCard
-        eyebrow="Maintenance"
-        title="Library actions"
-        description="Run safe maintenance operations without leaving the web interface."
+        eyebrow="Library"
+        title="Library tools"
+        description="Use these tools when you want SnapCapsule to pick up more data or start fresh."
       >
         <SettingRow
-          title="Re-scan Library"
-          description="Queue a background scan for any mounted archive folders placed under the backend rescan directory."
+          title="Scan for new archive folders"
+          description="Look for new archive folders that were added to the library location outside the upload flow."
         >
           <button
             type="button"
@@ -66,7 +43,7 @@ export default function DataStoragePanel({
 
         <SettingRow
           title="Clear Database & Start Over"
-          description="Delete imported metadata plus generated raw and thumbnail files. Your saved settings will remain."
+          description="Remove imported data and generated media so you can rebuild the library from scratch. Your saved preferences stay."
           destructive
         >
           <button
