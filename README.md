@@ -1,6 +1,6 @@
 # SnapCapsule Web
 
-Phase 1 and 2 establish the container foundation, shared Python package, and initial Postgres schema for a worker-driven Snapchat archive service.
+SnapCapsule Web is a development-first, worker-driven Snapchat archive service built around FastAPI, Celery, PostgreSQL, Redis, and a React/Vite gallery frontend.
 
 ## Architecture Notes
 
@@ -20,11 +20,11 @@ apps/
         routes/
           health.py
       main.py
+  backend/
     Dockerfile
   worker/
     app/
       worker.py
-    Dockerfile
   web/
     README.md
 packages/
@@ -48,46 +48,49 @@ pyproject.toml
 
 ## Services
 
-- `snapcapsule-db`: PostgreSQL for archive metadata, timestamps, relationships, and file paths
-- `snapcapsule-redis`: Redis broker/result backend for Celery
-- `snapcapsule-api`: FastAPI service for HTTP requests and health checks
-- `snapcapsule-worker`: Celery worker for derivative generation and future ingestion/media jobs
+- `db`: PostgreSQL for archive metadata, timestamps, relationships, and file paths
+- `redis`: Redis broker/result backend for Celery
+- `backend`: FastAPI service running with `uvicorn --reload` against the mounted source tree
+- `worker`: Celery worker using the same shared Python image and mounted codebase
+- `frontend`: Vite development server with live React/Tailwind hot reload
 
 ## Storage Model
 
-The compose stack maps two host directories into both Python services:
+The compose stack maps permanent host storage into the Python services:
 
 - `raw` for original Snapchat media files
 - `thumbnails` for web-ready derivatives
+- `ingest` for upload archives and extraction workspaces
+- `postgres` for database persistence
 
 That keeps media serving simple and fast: the API reads metadata from Postgres, while both the API and worker can access the same files without copying blobs through Redis or the database.
 
 ## Quick Start
 
 1. Copy `.env.example` to `.env`.
-2. Adjust the host storage paths.
-3. Start the stack:
+2. Adjust the host storage paths if needed.
+3. Start the full development stack:
 
 ```bash
 docker compose up --build
 ```
 
-4. Verify the stack:
+4. Open the apps:
 
 ```bash
-curl http://localhost:8000/health
+http://localhost:3000
+http://localhost:8000/health
 ```
 
-The current health route checks both PostgreSQL and Redis connectivity.
+The frontend runs through Vite on port `3000`, the API runs on port `8000`, and both backend and frontend reload automatically when you save local files.
 
 ## Phase Scope
 
 This repo currently includes:
 
 - the monorepo folder structure for `api`, `worker`, and `web`
-- Docker Compose for Postgres, Redis, FastAPI, and Celery
+- a development-oriented Docker Compose stack for Postgres, Redis, FastAPI, Celery, and Vite
 - SQLAlchemy 2.0 models for assets, chats, memories, and stories
-- FastAPI startup with automatic schema creation and a health route
-- a Celery app plus placeholder media task wiring
-
-The frontend app itself is intentionally deferred to a later phase.
+- FastAPI ingestion, timeline, and media-serving routes
+- Celery ingestion and media-processing workers
+- a virtualized React gallery frontend with a lightbox viewer

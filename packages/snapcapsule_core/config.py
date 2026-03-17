@@ -7,8 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     project_name: str = "SnapCapsule Web"
     environment: str = "development"
-    database_url: str = "postgresql+psycopg://snapcapsule:snapcapsule@snapcapsule-db:5432/snapcapsule"
-    redis_url: str = "redis://snapcapsule-redis:6379/0"
+    database_url: str = "postgresql+psycopg://snapcapsule:snapcapsule@db:5432/snapcapsule"
+    redis_url: str = "redis://redis:6379/0"
     celery_broker_url: str | None = None
     celery_result_backend: str | None = None
     raw_media_dir: str = "/srv/snapcapsule/raw"
