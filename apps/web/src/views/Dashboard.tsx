@@ -1,13 +1,45 @@
-export default function Dashboard() {
+import { LoaderCircle } from "lucide-react";
+
+import DashboardStats from "../components/dashboard/DashboardStats";
+import ImportFlow from "../components/dashboard/ImportFlow";
+import { useDashboardStats } from "../hooks/useDashboardStats";
+
+function DashboardLoading() {
   return (
-    <section className="mx-auto flex w-full max-w-[1520px] flex-col gap-6">
-      <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,_rgba(10,18,30,0.98),_rgba(10,33,52,0.92),_rgba(5,10,18,0.98))] px-6 py-8 shadow-2xl shadow-black/30 md:px-8 md:py-10">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.34em] text-sky-200/70">Dashboard</p>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-white md:text-5xl">Dashboard</h1>
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-          This landing area will evolve into the operational overview for imports, processing activity, and archive health.
+    <section className="mx-auto flex min-h-[36rem] w-full max-w-[1520px] items-center justify-center rounded-[2rem] border border-white/10 bg-white/[0.035]">
+      <div className="flex flex-col items-center text-center">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full border border-sky-300/20 bg-sky-300/[0.12] text-sky-100">
+          <LoaderCircle className="h-9 w-9 animate-spin" />
+        </div>
+        <h2 className="mt-6 text-2xl font-semibold text-white">Loading dashboard</h2>
+        <p className="mt-3 max-w-xl text-sm leading-7 text-slate-400">
+          Checking the archive status so we can decide whether to show the import flow or the live dashboard.
         </p>
       </div>
     </section>
   );
+}
+
+export default function Dashboard() {
+  const statsQuery = useDashboardStats();
+
+  if (statsQuery.isLoading) {
+    return <DashboardLoading />;
+  }
+
+  if (statsQuery.isError) {
+    return (
+      <section className="mx-auto flex w-full max-w-[1520px] flex-col gap-6">
+        <div className="rounded-[1.6rem] border border-rose-400/20 bg-rose-400/10 px-5 py-4 text-sm text-rose-100">
+          {statsQuery.error instanceof Error ? statsQuery.error.message : "Failed to load dashboard stats."}
+        </div>
+      </section>
+    );
+  }
+
+  if (!statsQuery.data || statsQuery.data.total_assets === 0) {
+    return <ImportFlow onRefreshDashboard={() => void statsQuery.refetch()} />;
+  }
+
+  return <DashboardStats stats={statsQuery.data} onRefreshDashboard={() => void statsQuery.refetch()} />;
 }

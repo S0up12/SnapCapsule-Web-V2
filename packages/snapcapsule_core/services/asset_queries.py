@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import Select, desc, func, select
+from sqlalchemy import Select, case, desc, func, select
 from sqlalchemy.orm import Session
 
 from snapcapsule_core.models import Asset
@@ -24,6 +24,13 @@ class AssetFileRecord:
     media_type: MediaType
     original_path: str
     thumbnail_path: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class DashboardStatsRecord:
+    total_assets: int
+    total_photos: int
+    total_videos: int
 
 
 def build_timeline_query(*, limit: int, offset: int) -> Select[tuple[uuid.UUID, datetime | None, MediaType]]:
@@ -79,4 +86,24 @@ def get_asset_file_record(session: Session, asset_id: uuid.UUID) -> AssetFileRec
         media_type=row[1],
         original_path=row[2],
         thumbnail_path=row[3],
+    )
+
+
+def get_dashboard_stats(session: Session) -> DashboardStatsRecord:
+    row = session.execute(
+        select(
+            func.count().label("total_assets"),
+            func.sum(case((Asset.media_type == MediaType.IMAGE, 1), else_=0)).label("total_photos"),
+            func.sum(case((Asset.media_type == MediaType.VIDEO, 1), else_=0)).label("total_videos"),
+        ).where(
+            Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)),
+            Asset.thumbnail_path.is_not(None),
+            Asset.original_path.is_not(None),
+        )
+    ).one()
+
+    return DashboardStatsRecord(
+        total_assets=int(row.total_assets or 0),
+        total_photos=int(row.total_photos or 0),
+        total_videos=int(row.total_videos or 0),
     )

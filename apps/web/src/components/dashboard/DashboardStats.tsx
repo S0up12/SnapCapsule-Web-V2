@@ -1,0 +1,137 @@
+import { BarChart3, Film, ImageIcon, LayoutDashboard } from "lucide-react";
+
+import type { DashboardStats as DashboardStatsData } from "../../hooks/useDashboardStats";
+import ImportFlow from "./ImportFlow";
+
+type DashboardStatsProps = {
+  stats: DashboardStatsData;
+  onRefreshDashboard: () => void;
+};
+
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  accentClassName,
+}: {
+  title: string;
+  value: number;
+  icon: typeof LayoutDashboard;
+  accentClassName: string;
+}) {
+  return (
+    <article className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20 backdrop-blur">
+      <div className={`inline-flex rounded-[1rem] p-3 ${accentClassName}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{title}</p>
+      <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{value.toLocaleString()}</p>
+    </article>
+  );
+}
+
+export default function DashboardStats({ stats, onRefreshDashboard }: DashboardStatsProps) {
+  return (
+    <section className="mx-auto flex w-full max-w-[1520px] flex-col gap-6">
+      <div className="overflow-hidden rounded-[2.25rem] border border-white/10 bg-[linear-gradient(135deg,_rgba(9,17,28,0.98),_rgba(10,31,46,0.92),_rgba(5,9,16,0.98))] shadow-2xl shadow-black/30">
+        <div className="grid gap-8 px-6 py-8 md:px-10 md:py-10 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="space-y-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.34em] text-sky-200/70">Welcome Back</p>
+            <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
+              Your Snapchat archive is ready to explore and keep growing.
+            </h1>
+            <p className="max-w-2xl text-sm leading-7 text-slate-300">
+              This dashboard will become the control room for ingestion activity, media trends, and archive health. For
+              now, it confirms the core asset totals and keeps import tools visible even after the first ingest.
+            </p>
+          </div>
+
+          <div className="rounded-[1.9rem] border border-white/10 bg-white/[0.045] p-5 backdrop-blur">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Archive Status</p>
+            <div className="mt-4 rounded-[1.35rem] border border-emerald-300/10 bg-emerald-300/[0.08] px-5 py-4">
+              <p className="text-sm font-medium text-emerald-100">Archive ready and still open for new imports</p>
+              <p className="mt-2 text-sm leading-6 text-emerald-50/85">
+                Processed assets are available to the gallery, thumbnails are present, and you can keep adding new
+                Snapchat export ZIP files whenever you need to update the archive.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <StatCard
+          title="Total Memories"
+          value={stats.total_memories}
+          icon={LayoutDashboard}
+          accentClassName="bg-sky-300/[0.14] text-sky-100"
+        />
+        <StatCard
+          title="Total Photos"
+          value={stats.total_photos}
+          icon={ImageIcon}
+          accentClassName="bg-emerald-300/[0.14] text-emerald-100"
+        />
+        <StatCard
+          title="Total Videos"
+          value={stats.total_videos}
+          icon={Film}
+          accentClassName="bg-amber-300/[0.14] text-amber-100"
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <section className="rounded-[1.7rem] border border-white/10 bg-white/[0.04] p-4 shadow-xl shadow-black/20">
+          <ImportFlow variant="compact" onRefreshDashboard={onRefreshDashboard} />
+        </section>
+
+        <section className="rounded-[1.7rem] border border-white/10 bg-white/[0.04] p-6 shadow-xl shadow-black/20">
+          <div className="flex items-center gap-3 text-slate-200">
+            <BarChart3 className="h-5 w-5 text-sky-200" />
+            <h2 className="text-lg font-semibold">Media Timeline Overview</h2>
+          </div>
+          <div className="mt-6 h-64 rounded-[1.35rem] border border-dashed border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01))]" />
+        </section>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <section className="rounded-[1.7rem] border border-white/10 bg-white/[0.04] p-6 shadow-xl shadow-black/20">
+          <h2 className="text-lg font-semibold text-white">Library Coverage</h2>
+          <div className="mt-6 grid gap-4">
+            <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Ready For Browsing</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                {stats.total_memories.toLocaleString()} total web-ready assets currently available to the gallery.
+              </p>
+            </div>
+            <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Incremental Archive Growth</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                New ZIP uploads can be added at any time, so the archive can grow as you export more Snapchat data.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[1.7rem] border border-white/10 bg-white/[0.04] p-6 shadow-xl shadow-black/20">
+          <h2 className="text-lg font-semibold text-white">Processing Snapshot</h2>
+          <div className="mt-6 grid gap-4">
+            <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Current Mix</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                {stats.total_photos.toLocaleString()} photos and {stats.total_videos.toLocaleString()} videos are ready
+                for the timeline and viewer.
+              </p>
+            </div>
+            <div className="rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Next Phase</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                These panels are reserved for import history, queue throughput, and future timeline analytics.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}

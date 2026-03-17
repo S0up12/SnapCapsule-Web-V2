@@ -102,6 +102,24 @@ class TimelinePageResponse(BaseModel):
     has_more: bool = Field(..., description="Whether more assets exist beyond the current page.", examples=[True])
 
 
+class DashboardStatsResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "total_assets": 12453,
+                "total_memories": 12453,
+                "total_photos": 10984,
+                "total_videos": 1469,
+            }
+        }
+    )
+
+    total_assets: int = Field(..., description="Total processed photo and video assets available for the web UI.")
+    total_memories: int = Field(..., description="Alias of total processed assets used by the dashboard cards.")
+    total_photos: int = Field(..., description="Total processed image assets available in the archive.")
+    total_videos: int = Field(..., description="Total processed video assets available in the archive.")
+
+
 class IngestionStartResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={

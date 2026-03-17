@@ -9,16 +9,36 @@ from typing import Iterator
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
-from apps.api.app.api.schemas import ErrorResponse, TimelinePageResponse
+from apps.api.app.api.schemas import DashboardStatsResponse, ErrorResponse, TimelinePageResponse
 from snapcapsule_core.db import SessionLocal
 from snapcapsule_core.models.enums import MediaType
-from snapcapsule_core.services.asset_queries import count_timeline_assets, get_asset_file_record, list_timeline_assets
+from snapcapsule_core.services.asset_queries import count_timeline_assets, get_asset_file_record, get_dashboard_stats, list_timeline_assets
 
 router = APIRouter(prefix="/api")
 
 _RANGE_RE = re.compile(r"bytes=(?P<start>\d*)-(?P<end>\d*)$")
 _DEFAULT_PAGE_SIZE = 100
 _MAX_PAGE_SIZE = 100
+
+
+@router.get(
+    "/stats",
+    response_model=DashboardStatsResponse,
+    tags=["Dashboard"],
+    summary="Get dashboard asset statistics",
+    responses={200: {"description": "Summary counts used to render the import flow or the populated dashboard."}},
+)
+def get_stats() -> DashboardStatsResponse:
+    """Return lightweight processed-media counts so the dashboard can decide whether to show onboarding or stats."""
+    with SessionLocal() as session:
+        stats = get_dashboard_stats(session)
+
+    return DashboardStatsResponse(
+        total_assets=stats.total_assets,
+        total_memories=stats.total_assets,
+        total_photos=stats.total_photos,
+        total_videos=stats.total_videos,
+    )
 
 
 @router.get(

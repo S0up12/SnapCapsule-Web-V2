@@ -26,6 +26,10 @@ OPENAPI_TAGS = [
         "description": "Lightweight, paginated asset listings optimized for virtualized gallery views.",
     },
     {
+        "name": "Dashboard",
+        "description": "Summary endpoints used by the web dashboard to decide between import onboarding and stats views.",
+    },
+    {
         "name": "Media Server",
         "description": "Fast file-serving endpoints for thumbnails and originals, including HTTP range support for videos.",
     },
