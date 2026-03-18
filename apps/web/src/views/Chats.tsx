@@ -94,7 +94,7 @@ function ChatMediaThumbnail({
       className="overflow-hidden rounded-[1rem] border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
     >
       <img
-        src={getThumbnailUrl(asset.id)}
+        src={getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0)}
         alt={asset.media_type}
         loading="lazy"
         decoding="async"
@@ -220,6 +220,7 @@ export default function Chats() {
           media_type: asset.media_type,
           is_favorite: asset.is_favorite,
           tags: asset.tags,
+          has_overlay: asset.has_overlay,
         });
       }
     }

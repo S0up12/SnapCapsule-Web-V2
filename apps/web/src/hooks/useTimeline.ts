@@ -7,6 +7,7 @@ export type TimelineAsset = {
   media_type: "image" | "video";
   is_favorite: boolean;
   tags: string[];
+  has_overlay: boolean;
 };
 
 type TimelineSummary = {
@@ -137,12 +138,24 @@ export function formatTimelineGroup(value: string | null) {
   };
 }
 
-export function getThumbnailUrl(assetId: string) {
-  return `/api/asset/${assetId}/thumbnail`;
+function withCacheKey(url: string, cacheKey?: string | number | boolean | null) {
+  if (cacheKey === undefined || cacheKey === null) {
+    return url;
+  }
+  const params = new URLSearchParams({ v: String(cacheKey) });
+  return `${url}?${params.toString()}`;
 }
 
-export function getOriginalUrl(assetId: string) {
-  return `/api/asset/${assetId}/original`;
+export function getThumbnailUrl(assetId: string, cacheKey?: string | number | boolean | null) {
+  return withCacheKey(`/api/asset/${assetId}/thumbnail`, cacheKey);
+}
+
+export function getOriginalUrl(assetId: string, cacheKey?: string | number | boolean | null) {
+  return withCacheKey(`/api/asset/${assetId}/original`, cacheKey);
+}
+
+export function getOverlayUrl(assetId: string, cacheKey?: string | number | boolean | null) {
+  return withCacheKey(`/api/asset/${assetId}/overlay`, cacheKey);
 }
 
 export function useTimeline(filters: TimelineQueryState) {

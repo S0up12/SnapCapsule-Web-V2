@@ -21,7 +21,20 @@ from snapcapsule_core.models.enums import AssetSource, ChatMessageSource, Ingest
 DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 MEDIA_ID_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm", ".mkv", ".m4v"}
-MEDIA_SUFFIXES = ("_overlay", "_caption", "_image", "_video", "_media", "_main")
+MEDIA_SUFFIXES = (
+    "_overlay",
+    "-overlay",
+    "_caption",
+    "-caption",
+    "_image",
+    "-image",
+    "_video",
+    "-video",
+    "_media",
+    "-media",
+    "_main",
+    "-main",
+)
 CHAT_MEDIA_MATCH_MAX_DELTA_SECONDS = 5
 SNAP_MEDIA_MATCH_MAX_DELTA_SECONDS = 5
 MERGEABLE_JSON_FILES = {
@@ -1001,7 +1014,7 @@ class IngestionService:
 
     @staticmethod
     def is_overlay_variant(path: Path) -> bool:
-        return path.stem.endswith(("_overlay", "_caption"))
+        return path.stem.endswith(("_overlay", "-overlay", "_caption", "-caption"))
 
     @staticmethod
     def detect_media_type(path: Path) -> MediaType:
@@ -1037,11 +1050,11 @@ class IngestionService:
     @staticmethod
     def media_rank(path: Path) -> int:
         stem = path.stem
-        if stem.endswith("_video") or stem.endswith("_image"):
+        if stem.endswith(("_video", "-video", "_image", "-image")):
             return 0
-        if stem.endswith("_main"):
+        if stem.endswith(("_main", "-main")):
             return 1
-        if stem.endswith("_media"):
+        if stem.endswith(("_media", "-media")):
             return 2
         return 3
 

@@ -76,6 +76,7 @@ def get_chat_messages(
                         "media_type": asset.media_type,
                         "is_favorite": asset.is_favorite,
                         "tags": list(asset.tags),
+                        "has_overlay": asset.has_overlay,
                     }
                     for asset in item.media_assets
                 ],

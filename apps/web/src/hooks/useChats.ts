@@ -14,6 +14,7 @@ export type ChatMediaAsset = {
   media_type: "image" | "video" | "audio";
   is_favorite: boolean;
   tags: string[];
+  has_overlay: boolean;
 };
 
 export type ChatMessageGroup = {

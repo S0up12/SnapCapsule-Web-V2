@@ -92,6 +92,7 @@ def get_timeline(
                 "media_type": item.media_type.value,
                 "is_favorite": item.is_favorite,
                 "tags": list(item.tags),
+                "has_overlay": item.has_overlay,
             }
             for item in items
         ],
@@ -186,6 +187,37 @@ def get_asset_thumbnail(asset_id: uuid.UUID) -> FileResponse:
         path=thumbnail_path,
         media_type=media_type,
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@router.get(
+    "/asset/{asset_id}/overlay",
+    response_class=FileResponse,
+    tags=["Media Server"],
+    summary="Serve an asset overlay image",
+    responses={
+        200: {
+            "description": "Original Snapchat overlay image used to composite edited memories in the viewer.",
+            "content": {"image/png": {}, "image/webp": {}, "application/octet-stream": {}},
+        },
+        404: {"model": ErrorResponse, "description": "Asset or overlay file was not found."},
+    },
+)
+def get_asset_overlay(asset_id: uuid.UUID) -> FileResponse:
+    with SessionLocal() as session:
+        asset = get_asset_file_record(session, asset_id)
+
+    if asset is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
+    if not asset.overlay_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Overlay not available.")
+
+    overlay_path = _existing_file(asset.overlay_path, "Overlay file is missing.")
+    media_type = mimetypes.guess_type(overlay_path.name)[0] or "application/octet-stream"
+    return FileResponse(
+        path=overlay_path,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=3600"},
     )
 
 

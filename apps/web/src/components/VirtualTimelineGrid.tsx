@@ -69,7 +69,7 @@ function TimelineTile({
       style={{ width, height }}
     >
       <img
-        src={getThumbnailUrl(asset.id)}
+        src={getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0)}
         alt={date.label}
         loading="lazy"
         decoding="async"

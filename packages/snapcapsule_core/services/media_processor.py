@@ -4,6 +4,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -61,7 +62,7 @@ class MediaProcessor:
         if media_type == MediaType.IMAGE:
             return self._generate_image_thumbnail(media_path, destination, overlay_path)
         if media_type == MediaType.VIDEO:
-            return self._generate_video_thumbnail(media_path, destination)
+            return self._generate_video_thumbnail(media_path, destination, overlay_path)
         return None
 
     def detect_actual_media_type(self, media_path: str | Path, fallback: MediaType) -> MediaType:
@@ -92,49 +93,85 @@ class MediaProcessor:
         overlay_path: str | Path | None = None,
     ) -> Path:
         with Image.open(media_path) as image:
-            image = ImageOps.exif_transpose(image)
-            if image.mode not in ("RGB", "RGBA"):
-                image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
-
-            if overlay_path and Path(overlay_path).exists():
-                with Image.open(overlay_path) as overlay:
-                    overlay = ImageOps.exif_transpose(overlay).convert("RGBA")
-                    base = image.convert("RGBA")
-                    if overlay.size != base.size:
-                        overlay = overlay.resize(base.size, Image.Resampling.LANCZOS)
-                    image = Image.alpha_composite(base, overlay).convert("RGB")
-            elif image.mode != "RGB":
-                image = image.convert("RGB")
-
+            image = self._compose_overlay(image, overlay_path)
             image.thumbnail((360, 360), Image.Resampling.LANCZOS)
             image.save(destination, format="JPEG", quality=60, optimize=True)
 
         return destination
 
-    def _generate_video_thumbnail(self, media_path: str | Path, destination: Path) -> Path:
-        command = [
-            "ffmpeg",
-            "-y",
-            "-ss",
-            "00:00:00",
-            "-i",
-            str(media_path),
-            "-frames:v",
-            "1",
-            "-vf",
-            "scale=360:-1",
-            "-q:v",
-            "8",
-            str(destination),
-        ]
-        subprocess.run(
-            command,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=20,
-        )
+    def _generate_video_thumbnail(
+        self,
+        media_path: str | Path,
+        destination: Path,
+        overlay_path: str | Path | None = None,
+    ) -> Path:
+        if not overlay_path or not Path(overlay_path).exists():
+            command = [
+                "ffmpeg",
+                "-y",
+                "-ss",
+                "00:00:00",
+                "-i",
+                str(media_path),
+                "-frames:v",
+                "1",
+                "-vf",
+                "scale=360:-1",
+                "-q:v",
+                "8",
+                str(destination),
+            ]
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=20,
+            )
+            return destination
+
+        with tempfile.TemporaryDirectory(prefix="snapcapsule-thumb-") as temp_dir:
+            frame_path = Path(temp_dir) / "frame.jpg"
+            command = [
+                "ffmpeg",
+                "-y",
+                "-ss",
+                "00:00:00",
+                "-i",
+                str(media_path),
+                "-frames:v",
+                "1",
+                str(frame_path),
+            ]
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=20,
+            )
+            with Image.open(frame_path) as frame:
+                image = self._compose_overlay(frame, overlay_path)
+                image.thumbnail((360, 360), Image.Resampling.LANCZOS)
+                image.save(destination, format="JPEG", quality=60, optimize=True)
         return destination
+
+    def _compose_overlay(self, image: Image.Image, overlay_path: str | Path | None = None) -> Image.Image:
+        image = ImageOps.exif_transpose(image)
+        if image.mode not in ("RGB", "RGBA"):
+            image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
+
+        if overlay_path and Path(overlay_path).exists():
+            with Image.open(overlay_path) as overlay:
+                overlay = ImageOps.exif_transpose(overlay).convert("RGBA")
+                base = image.convert("RGBA")
+                if overlay.size != base.size:
+                    overlay = overlay.resize(base.size, Image.Resampling.LANCZOS)
+                return Image.alpha_composite(base, overlay).convert("RGB")
+
+        if image.mode != "RGB":
+            return image.convert("RGB")
+        return image
 
     def _probe_stream_types(self, media_path: str | Path) -> set[str]:
         command = [

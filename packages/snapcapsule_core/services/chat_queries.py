@@ -34,6 +34,7 @@ class ChatMediaAssetRecord:
     media_type: MediaType
     is_favorite: bool
     tags: tuple[str, ...]
+    has_overlay: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +223,7 @@ def list_grouped_chat_messages(
                 media_type=asset.media_type,
                 is_favorite=asset.is_favorite,
                 tags=tuple(asset.tags or ()),
+                has_overlay=bool(asset.overlay_path),
             )
             for asset in sorted(
                 message.assets,

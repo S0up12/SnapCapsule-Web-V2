@@ -65,6 +65,7 @@ class AssetSummary(BaseModel):
                 "media_type": "video",
                 "is_favorite": True,
                 "tags": ["vacation", "beach"],
+                "has_overlay": False,
             }
         }
     )
@@ -78,6 +79,7 @@ class AssetSummary(BaseModel):
     media_type: MediaType = Field(..., description="Normalized media type returned by the API.")
     is_favorite: bool = Field(..., description="Whether the asset is currently marked as a favorite.")
     tags: list[str] = Field(..., description="User-defined text tags associated with the asset.")
+    has_overlay: bool = Field(..., description="Whether Snapchat provided a separate overlay image for this asset.")
 
 
 class TimelineSummary(BaseModel):
@@ -97,6 +99,7 @@ class TimelinePageResponse(BaseModel):
                         "media_type": "video",
                         "is_favorite": True,
                         "tags": ["vacation", "beach"],
+                        "has_overlay": False,
                     }
                 ],
                 "limit": 100,
@@ -201,6 +204,7 @@ class ChatMediaAssetSummary(BaseModel):
     media_type: MediaType = Field(..., description="Media type for thumbnail and lightbox rendering.")
     is_favorite: bool = Field(..., description="Whether the linked media asset is favorited.")
     tags: list[str] = Field(..., description="Current user-defined tags attached to the linked asset.")
+    has_overlay: bool = Field(..., description="Whether the media asset has a separate Snapchat overlay image.")
 
 
 class ChatMessageGroup(BaseModel):
@@ -220,6 +224,7 @@ class ChatMessageGroup(BaseModel):
                         "media_type": "image",
                         "is_favorite": False,
                         "tags": [],
+                        "has_overlay": False,
                     }
                 ],
             }

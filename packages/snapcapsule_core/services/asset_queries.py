@@ -27,6 +27,7 @@ class TimelineAssetRecord:
     media_type: MediaType
     is_favorite: bool
     tags: tuple[str, ...]
+    has_overlay: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +36,7 @@ class AssetFileRecord:
     media_type: MediaType
     original_path: str
     thumbnail_path: str | None
+    overlay_path: str | None
     is_favorite: bool
     tags: tuple[str, ...]
 
@@ -89,7 +91,7 @@ def build_timeline_query(*, limit: int, offset: int, filters: TimelineFilters) -
     )
 
     return (
-        select(Asset.id, Asset.taken_at, Asset.media_type, Asset.is_favorite, Asset.tags)
+        select(Asset.id, Asset.taken_at, Asset.media_type, Asset.is_favorite, Asset.tags, Asset.overlay_path)
         .where(*_base_asset_filters(filters))
         .order_by(*order_by)
         .limit(limit)
@@ -106,8 +108,9 @@ def list_timeline_assets(session: Session, *, limit: int, offset: int, filters: 
             media_type=media_type,
             is_favorite=is_favorite,
             tags=tuple(tags or ()),
+            has_overlay=bool(overlay_path),
         )
-        for asset_id, taken_at, media_type, is_favorite, tags in rows
+        for asset_id, taken_at, media_type, is_favorite, tags, overlay_path in rows
     ]
 
 
@@ -153,6 +156,7 @@ def get_asset_file_record(session: Session, asset_id: uuid.UUID) -> AssetFileRec
             Asset.media_type,
             Asset.original_path,
             Asset.thumbnail_path,
+            Asset.overlay_path,
             Asset.is_favorite,
             Asset.tags,
         ).where(Asset.id == asset_id)
@@ -165,8 +169,9 @@ def get_asset_file_record(session: Session, asset_id: uuid.UUID) -> AssetFileRec
         media_type=row[1],
         original_path=row[2],
         thumbnail_path=row[3],
-        is_favorite=bool(row[4]),
-        tags=tuple(row[5] or ()),
+        overlay_path=row[4],
+        is_favorite=bool(row[5]),
+        tags=tuple(row[6] or ()),
     )
 
 
