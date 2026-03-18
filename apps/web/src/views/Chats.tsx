@@ -1,10 +1,70 @@
-import { ArrowDownWideNarrow, LoaderCircle, MessageSquareText, Mic, Search } from "lucide-react";
+import { ArrowDownWideNarrow, LoaderCircle, MessageSquareText, Pause, Play, Search, Volume2 } from "lucide-react";
 import { Fragment, startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import Lightbox from "../components/Lightbox";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
 import { getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
 import { useChatMessages, useChats, type ChatConversation, type ChatMediaAsset, type ChatMessageGroup } from "../hooks/useChats";
+
+type SenderTone = {
+  labelClass: string;
+  poleClass: string;
+  linkClass: string;
+  hoverDotClass: string;
+};
+
+const PRIVATE_ME_TONE: SenderTone = {
+  labelClass: "text-rose-500 dark:text-rose-400",
+  poleClass: "bg-rose-500 dark:bg-rose-400",
+  linkClass: "text-rose-700 dark:text-rose-300",
+  hoverDotClass: "bg-rose-500 dark:bg-rose-400",
+};
+
+const PRIVATE_OTHER_TONE: SenderTone = {
+  labelClass: "text-sky-500 dark:text-sky-400",
+  poleClass: "bg-sky-500 dark:bg-sky-400",
+  linkClass: "text-sky-700 dark:text-sky-300",
+  hoverDotClass: "bg-sky-500 dark:bg-sky-400",
+};
+
+const GROUP_TONES: SenderTone[] = [
+  {
+    labelClass: "text-cyan-400 dark:text-cyan-300",
+    poleClass: "bg-cyan-400 dark:bg-cyan-300",
+    linkClass: "text-cyan-700 dark:text-cyan-300",
+    hoverDotClass: "bg-cyan-400 dark:bg-cyan-300",
+  },
+  {
+    labelClass: "text-lime-500 dark:text-lime-400",
+    poleClass: "bg-lime-500 dark:bg-lime-400",
+    linkClass: "text-lime-700 dark:text-lime-300",
+    hoverDotClass: "bg-lime-500 dark:bg-lime-400",
+  },
+  {
+    labelClass: "text-fuchsia-500 dark:text-fuchsia-400",
+    poleClass: "bg-fuchsia-500 dark:bg-fuchsia-400",
+    linkClass: "text-fuchsia-700 dark:text-fuchsia-300",
+    hoverDotClass: "bg-fuchsia-500 dark:bg-fuchsia-400",
+  },
+  {
+    labelClass: "text-amber-500 dark:text-amber-400",
+    poleClass: "bg-amber-500 dark:bg-amber-400",
+    linkClass: "text-amber-700 dark:text-amber-300",
+    hoverDotClass: "bg-amber-500 dark:bg-amber-400",
+  },
+  {
+    labelClass: "text-violet-500 dark:text-violet-400",
+    poleClass: "bg-violet-500 dark:bg-violet-400",
+    linkClass: "text-violet-700 dark:text-violet-300",
+    hoverDotClass: "bg-violet-500 dark:bg-violet-400",
+  },
+  {
+    labelClass: "text-emerald-500 dark:text-emerald-400",
+    poleClass: "bg-emerald-500 dark:bg-emerald-400",
+    linkClass: "text-emerald-700 dark:text-emerald-300",
+    hoverDotClass: "bg-emerald-500 dark:bg-emerald-400",
+  },
+];
 
 function formatConversationTime(value: string | null) {
   if (!value) {
@@ -44,6 +104,35 @@ function avatarInitials(value: string) {
   return parts.map((part) => part.charAt(0).toUpperCase()).join("");
 }
 
+function hashSenderLabel(value: string) {
+  let hash = 0;
+  for (const character of value) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+  return hash;
+}
+
+function buildSenderToneMap(messages: ChatMessageGroup[], isGroupChat: boolean) {
+  const tones = new Map<string, SenderTone>();
+
+  for (const message of messages) {
+    const key = message.sender_label || message.sender || "Unknown";
+    if (tones.has(key)) {
+      continue;
+    }
+
+    if (!isGroupChat) {
+      tones.set(key, message.is_me ? PRIVATE_ME_TONE : PRIVATE_OTHER_TONE);
+      continue;
+    }
+
+    const paletteIndex = hashSenderLabel(key.toLowerCase()) % GROUP_TONES.length;
+    tones.set(key, GROUP_TONES[paletteIndex]);
+  }
+
+  return tones;
+}
+
 const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<]+/gi;
 const TRAILING_PUNCTUATION = /[),.!?:;\]]+$/;
 
@@ -70,7 +159,7 @@ function normalizeMessageLink(rawValue: string) {
   };
 }
 
-function renderMessageText(text: string, isMe: boolean) {
+function renderMessageText(text: string, linkClass: string) {
   const segments: Array<string | { href: string; label: string }> = [];
   let cursor = 0;
 
@@ -119,7 +208,7 @@ function renderMessageText(text: string, isMe: boolean) {
             rel="noreferrer"
             className={[
               "underline decoration-current/45 underline-offset-4 transition hover:decoration-current",
-              isMe ? "text-white" : "text-sky-700 dark:text-sky-300",
+              linkClass,
             ].join(" ")}
           >
             {segment.label}
@@ -128,6 +217,16 @@ function renderMessageText(text: string, isMe: boolean) {
       )}
     </p>
   );
+}
+
+function formatAudioClock(value: number) {
+  if (!Number.isFinite(value) || value < 0) {
+    return "0:00";
+  }
+  const totalSeconds = Math.floor(value);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 function ConversationRow({
@@ -180,7 +279,7 @@ function ChatMediaThumbnail({
     <button
       type="button"
       onClick={onOpen}
-      className="overflow-hidden rounded-[1rem] border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
+      className="overflow-hidden rounded-[1rem] border border-slate-300/80 bg-white/90 shadow-sm transition hover:border-slate-400 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20"
     >
       <img
         src={getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0, showOverlays)}
@@ -198,17 +297,89 @@ function ChatVoiceMessage({
 }: {
   asset: ChatMediaAsset;
 }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    return () => {
+      audioRef.current?.pause();
+    };
+  }, []);
+
+  function syncFromAudio() {
+    const element = audioRef.current;
+    if (!element) {
+      return;
+    }
+    setCurrentTime(element.currentTime || 0);
+    setDuration(element.duration || 0);
+    setIsPlaying(!element.paused && !element.ended);
+  }
+
+  function handleTogglePlayback() {
+    const element = audioRef.current;
+    if (!element) {
+      return;
+    }
+    if (element.paused) {
+      void element.play().then(() => {
+        syncFromAudio();
+      }).catch(() => {
+        setIsPlaying(false);
+      });
+      return;
+    }
+    element.pause();
+    syncFromAudio();
+  }
+
   return (
-    <div className="flex w-[19rem] max-w-full items-center gap-3 rounded-[1rem] border border-black/10 bg-black/5 px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-500/14 text-sky-700 dark:text-sky-200">
-        <Mic className="h-4.5 w-4.5" />
-      </div>
+    <div className="w-[18.5rem] max-w-full rounded-[1.1rem] border border-slate-300/70 bg-white/72 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
       <audio
-        controls
+        ref={audioRef}
         preload="metadata"
         src={getOriginalUrl(asset.id)}
-        className="block min-w-0 flex-1"
+        onLoadedMetadata={syncFromAudio}
+        onTimeUpdate={syncFromAudio}
+        onPlay={syncFromAudio}
+        onPause={syncFromAudio}
+        onEnded={syncFromAudio}
+        className="hidden"
       />
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleTogglePlayback}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-900/6 dark:text-slate-100 dark:hover:bg-white/8"
+          aria-label={isPlaying ? "Pause audio" : "Play audio"}
+        >
+          {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
+        </button>
+        <span className="w-[4.75rem] shrink-0 text-xs font-medium tabular-nums text-slate-700 dark:text-slate-200">
+          {formatAudioClock(currentTime)} / {formatAudioClock(duration)}
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={duration > 0 ? duration : 0}
+          step={0.1}
+          value={Math.min(currentTime, duration || currentTime)}
+          onChange={(event) => {
+            const nextTime = Number(event.target.value);
+            const element = audioRef.current;
+            if (!element || Number.isNaN(nextTime)) {
+              return;
+            }
+            element.currentTime = nextTime;
+            setCurrentTime(nextTime);
+          }}
+          className="h-2 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-slate-300/90 accent-slate-700 dark:bg-white/18 dark:accent-white [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-slate-700 dark:[&::-moz-range-thumb]:bg-white [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:mt-[-3px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-700 dark:[&::-webkit-slider-thumb]:bg-white"
+          aria-label="Seek audio"
+        />
+        <Volume2 className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+      </div>
     </div>
   );
 }
@@ -216,50 +387,58 @@ function ChatVoiceMessage({
 function MessageBubble({
   message,
   showOverlays,
+  senderTone,
   onOpenMedia,
 }: {
   message: ChatMessageGroup;
   showOverlays: boolean;
+  senderTone: SenderTone;
   onOpenMedia: (assetId: string) => void;
 }) {
-  return (
-    <div className={`flex ${message.is_me ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[min(44rem,85%)] ${message.is_me ? "items-end" : "items-start"} flex flex-col`}>
-        <span className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-          {message.sender_label}
-        </span>
-        <div
-          className={[
-            "rounded-[1.35rem] px-4 py-3 shadow-sm",
-            message.is_me
-              ? "bg-sky-500 text-white shadow-sky-900/10"
-              : "border border-slate-200/80 bg-white text-slate-900 dark:border-white/10 dark:bg-slate-950/75 dark:text-slate-100",
-          ].join(" ")}
-        >
-          {message.text ? (
-            renderMessageText(message.text, message.is_me)
-          ) : null}
+  const audioAssets = message.media_assets.filter((asset) => asset.media_type === "audio");
+  const visualAssets = message.media_assets.filter((asset) => asset.media_type !== "audio");
 
-          {message.media_assets.length > 0 ? (
-            <div className={`${message.text ? "mt-3" : ""} flex flex-wrap gap-2`}>
-              {message.media_assets.map((asset) =>
-                asset.media_type === "audio" ? (
-                  <ChatVoiceMessage key={asset.id} asset={asset} />
-                ) : (
-                  <ChatMediaThumbnail
-                    key={asset.id}
-                    asset={asset}
-                    showOverlays={showOverlays}
-                    onOpen={() => onOpenMedia(asset.id)}
-                  />
-                )
-              )}
-            </div>
-          ) : null}
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[min(46rem,94%)]">
+        <div className="flex items-center gap-3 px-1">
+          <span className={["text-[11px] font-semibold uppercase tracking-[0.22em]", senderTone.labelClass].join(" ")}>
+            {message.sender_label}
+          </span>
         </div>
-        <span className="mt-1.5 px-1 text-[11px] uppercase tracking-[0.18em] text-slate-500">
-          {formatMessageTime(message.sent_at)}
-        </span>
+        <div className="group mt-1.5 inline-flex items-stretch gap-3">
+          <div className={["w-[3px] shrink-0 rounded-full", senderTone.poleClass].join(" ")} />
+          <div className="min-w-0 flex-1 rounded-r-[1.35rem] rounded-bl-[0.45rem] border border-slate-200/80 bg-white/88 px-4 py-3 text-slate-900 shadow-sm transition duration-150 group-hover:border-slate-300 group-hover:shadow-md dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100 dark:group-hover:border-white/16 dark:group-hover:shadow-black/25">
+            {message.text ? renderMessageText(message.text, senderTone.linkClass) : null}
+
+            {message.media_assets.length > 0 ? (
+              <div className={`${message.text ? "mt-3" : ""} space-y-2`}>
+                {visualAssets.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {visualAssets.map((asset) => (
+                      <ChatMediaThumbnail
+                        key={asset.id}
+                        asset={asset}
+                        showOverlays={showOverlays}
+                        onOpen={() => onOpenMedia(asset.id)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                {audioAssets.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {audioAssets.map((asset) => (
+                      <ChatVoiceMessage key={asset.id} asset={asset} />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          <div className="inline-flex min-h-[2.75rem] items-center px-1 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400 opacity-0 transition duration-150 group-hover:opacity-100">
+            <span>{formatMessageTime(message.sent_at)}</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -317,6 +496,11 @@ export default function Chats() {
     }
     return items;
   }, [messagesQuery.data?.items]);
+
+  const senderTones = useMemo(
+    () => buildSenderToneMap(messagesQuery.data?.items ?? [], selectedConversation?.is_group ?? false),
+    [messagesQuery.data?.items, selectedConversation?.is_group],
+  );
 
   return (
     <section className="flex h-[calc(100vh-10rem)] min-h-[42rem] w-full overflow-hidden rounded-[1.9rem] border border-slate-200/80 bg-white/84 shadow-[0_28px_80px_rgba(15,23,42,0.1)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-black/25">
@@ -409,12 +593,16 @@ export default function Chats() {
                   {messagesQuery.error instanceof Error ? messagesQuery.error.message : "Failed to load chat messages."}
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   {messagesQuery.data?.items.map((message) => (
                     <MessageBubble
                       key={message.id}
                       message={message}
                       showOverlays={showOverlays}
+                      senderTone={
+                        senderTones.get(message.sender_label || message.sender || "Unknown") ??
+                        (message.is_me ? PRIVATE_ME_TONE : PRIVATE_OTHER_TONE)
+                      }
                       onOpenMedia={(assetId) => {
                         const index = flattenedMedia.findIndex((asset) => asset.id === assetId);
                         if (index < 0) {

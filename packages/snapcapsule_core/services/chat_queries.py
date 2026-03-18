@@ -25,6 +25,7 @@ class ChatConversationRecord:
     latest_at: datetime | None
     latest_preview: str
     has_media: bool
+    is_group: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +178,7 @@ def list_chat_threads(session: Session, filters: ChatFilters) -> list[ChatConver
                     int(row.latest_media_count or 0),
                 ),
                 has_media=bool(row.has_media),
+                is_group=bool(row.is_group),
             )
         )
     return records

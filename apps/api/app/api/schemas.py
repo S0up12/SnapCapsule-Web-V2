@@ -182,6 +182,7 @@ class ChatConversationSummary(BaseModel):
                 "latest_at": "2024-01-03T10:15:00+00:00",
                 "latest_preview": "You: Media attachment",
                 "has_media": True,
+                "is_group": False,
             }
         }
     )
@@ -191,6 +192,7 @@ class ChatConversationSummary(BaseModel):
     latest_at: datetime | None = Field(default=None, description="Timestamp of the most recent interaction in the thread.")
     latest_preview: str = Field(..., description="Short preview line derived from the latest message in the conversation.")
     has_media: bool = Field(..., description="Whether the conversation contains one or more linked media assets.")
+    is_group: bool = Field(..., description="Whether the conversation is a group chat.")
 
 
 class ChatListResponse(BaseModel):

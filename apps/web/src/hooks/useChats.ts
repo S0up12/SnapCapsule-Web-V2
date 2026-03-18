@@ -6,6 +6,7 @@ export type ChatConversation = {
   latest_at: string | null;
   latest_preview: string;
   has_media: boolean;
+  is_group: boolean;
 };
 
 export type ChatMediaAsset = {

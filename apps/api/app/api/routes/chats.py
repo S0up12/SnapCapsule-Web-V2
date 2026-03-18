@@ -35,6 +35,7 @@ def get_chats(
                 "latest_at": item.latest_at,
                 "latest_preview": item.latest_preview,
                 "has_media": item.has_media,
+                "is_group": item.is_group,
             }
             for item in items
         ],
