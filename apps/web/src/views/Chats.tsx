@@ -275,18 +275,51 @@ function ChatMediaThumbnail({
   showOverlays: boolean;
   onOpen: () => void;
 }) {
+  const [previewSize, setPreviewSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    setPreviewSize(null);
+  }, [asset.id]);
+
+  function fitPreviewBox(width: number, height: number) {
+    const maxWidth = 220;
+    const maxHeight = 260;
+    const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+    setPreviewSize({
+      width: Math.max(96, Math.round(width * scale)),
+      height: Math.max(96, Math.round(height * scale)),
+    });
+  }
+
   return (
     <button
       type="button"
       onClick={onOpen}
       className="overflow-hidden rounded-[1rem] border border-slate-300/80 bg-white/90 shadow-sm transition hover:border-slate-400 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20"
+      style={
+        previewSize
+          ? {
+              width: `${previewSize.width}px`,
+              height: `${previewSize.height}px`,
+            }
+          : {
+              width: "168px",
+              height: "220px",
+            }
+      }
     >
       <img
         src={getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0, showOverlays)}
         alt={asset.media_type}
         loading="lazy"
         decoding="async"
-        className="h-40 w-28 object-cover"
+        onLoad={(event) => {
+          const element = event.currentTarget;
+          if (element.naturalWidth > 0 && element.naturalHeight > 0) {
+            fitPreviewBox(element.naturalWidth, element.naturalHeight);
+          }
+        }}
+        className="h-full w-full object-cover"
       />
     </button>
   );
