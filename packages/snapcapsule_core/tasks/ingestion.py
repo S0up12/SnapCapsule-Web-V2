@@ -12,6 +12,7 @@ from snapcapsule_core.models.enums import IngestionJobStatus, IngestionSourceKin
 from snapcapsule_core.queue import celery_app
 from snapcapsule_core.services.ingestion import IngestionService
 from snapcapsule_core.services.ingestion_jobs import (
+    ACTIVE_INGESTION_JOB_STATUSES,
     JobCanceledError,
     cleanup_successful_upload_artifacts,
     get_job_metadata,

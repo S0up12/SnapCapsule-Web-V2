@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
@@ -10,7 +11,7 @@ import psycopg
 import pytest
 from psycopg import sql
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from snapcapsule_core.models import Asset, Base, MemoryCollection, MemoryItem
 from snapcapsule_core.models.enums import AssetSource, MediaType
@@ -77,6 +78,34 @@ def db_session(engine) -> Iterator[Session]:
         session.close()
         transaction.rollback()
         connection.close()
+
+
+@pytest.fixture()
+def db_session_factory(engine):
+    with engine.begin() as connection:
+        for table in reversed(Base.metadata.sorted_tables):
+            connection.execute(table.delete())
+
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+    @contextmanager
+    def _session_scope() -> Iterator[Session]:
+        session = SessionLocal()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    try:
+        yield SessionLocal, _session_scope
+    finally:
+        with engine.begin() as connection:
+            for table in reversed(Base.metadata.sorted_tables):
+                connection.execute(table.delete())
 
 
 @pytest.fixture()
