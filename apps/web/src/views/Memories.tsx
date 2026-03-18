@@ -124,7 +124,7 @@ export default function Memories() {
       </section>
 
       {isError ? (
-        <div className="rounded-[1.25rem] border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+        <div className="rounded-[1.25rem] border border-rose-300/40 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100">
           {error instanceof Error ? error.message : "Failed to load memories."}
         </div>
       ) : null}

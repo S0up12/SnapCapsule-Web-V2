@@ -549,7 +549,7 @@ export default function Chats() {
               <LoaderCircle className="h-6 w-6 animate-spin text-slate-400" />
             </div>
           ) : conversationsQuery.isError ? (
-            <div className="rounded-[1.1rem] border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+            <div className="rounded-[1.1rem] border border-rose-300/40 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100">
               {conversationsQuery.error instanceof Error
                 ? conversationsQuery.error.message
                 : "Failed to load conversations."}
@@ -589,7 +589,7 @@ export default function Chats() {
                   <LoaderCircle className="h-7 w-7 animate-spin text-slate-400" />
                 </div>
               ) : messagesQuery.isError ? (
-                <div className="rounded-[1.2rem] border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+                <div className="rounded-[1.2rem] border border-rose-300/40 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100">
                   {messagesQuery.error instanceof Error ? messagesQuery.error.message : "Failed to load chat messages."}
                 </div>
               ) : (
