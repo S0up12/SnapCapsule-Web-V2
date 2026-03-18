@@ -259,6 +259,7 @@ class AppSettingsResponse(BaseModel):
             "example": {
                 "dark_mode": True,
                 "autoplay_videos_in_grid": False,
+                "show_memory_overlays": True,
                 "default_grid_size": "medium",
                 "enable_debug_logging": False,
                 "storage": {
@@ -273,6 +274,10 @@ class AppSettingsResponse(BaseModel):
     autoplay_videos_in_grid: bool = Field(
         ...,
         description="Whether muted video thumbnails should begin playback automatically inside gallery views.",
+    )
+    show_memory_overlays: bool = Field(
+        ...,
+        description="Whether Snapchat memory overlay PNGs should be composited into thumbnails and the viewer.",
     )
     default_grid_size: str = Field(
         ...,
@@ -292,6 +297,7 @@ class AppSettingsUpdateRequest(BaseModel):
             "example": {
                 "dark_mode": False,
                 "autoplay_videos_in_grid": True,
+                "show_memory_overlays": False,
                 "default_grid_size": "large",
                 "enable_debug_logging": True,
             }
@@ -300,6 +306,7 @@ class AppSettingsUpdateRequest(BaseModel):
 
     dark_mode: bool | None = Field(default=None, description="Persisted dark mode preference.")
     autoplay_videos_in_grid: bool | None = Field(default=None, description="Persisted autoplay preference.")
+    show_memory_overlays: bool | None = Field(default=None, description="Persisted memory overlay visibility preference.")
     default_grid_size: str | None = Field(
         default=None,
         description="Persisted default thumbnail size. Accepted values: small, medium, large.",

@@ -29,6 +29,7 @@ from snapcapsule_core.services.asset_queries import (
     toggle_asset_favorite,
     update_asset_tags,
 )
+from snapcapsule_core.services.media_processor import MediaProcessor
 
 router = APIRouter(prefix="/api")
 
@@ -171,7 +172,7 @@ def post_asset_tags(asset_id: uuid.UUID, payload: AssetTagsUpdateRequest) -> Ass
         404: {"model": ErrorResponse, "description": "Asset or thumbnail file was not found."},
     },
 )
-def get_asset_thumbnail(asset_id: uuid.UUID) -> FileResponse:
+def get_asset_thumbnail(asset_id: uuid.UUID, include_overlay: bool = Query(True)) -> FileResponse:
     """Serve the compressed thumbnail file used by the virtualized gallery grid."""
     with SessionLocal() as session:
         asset = get_asset_file_record(session, asset_id)
@@ -181,7 +182,7 @@ def get_asset_thumbnail(asset_id: uuid.UUID) -> FileResponse:
     if not asset.thumbnail_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thumbnail not available.")
 
-    thumbnail_path = _existing_file(asset.thumbnail_path, "Thumbnail file is missing.")
+    thumbnail_path = _resolve_thumbnail_path(asset, include_overlay=include_overlay)
     media_type = mimetypes.guess_type(thumbnail_path.name)[0] or "image/jpeg"
     return FileResponse(
         path=thumbnail_path,
@@ -294,6 +295,27 @@ def _existing_file(path_value: str, not_found_detail: str) -> Path:
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found_detail)
     return path
+
+
+def _resolve_thumbnail_path(asset, *, include_overlay: bool) -> Path:
+    if include_overlay or not asset.overlay_path:
+        return _existing_file(asset.thumbnail_path, "Thumbnail file is missing.")
+
+    original_path = _existing_file(asset.original_path, "Original media file is missing.")
+    processor = MediaProcessor()
+    plain_thumbnail_path = processor.thumbnail_destination_path(str(asset.id), include_overlay=False)
+    if not plain_thumbnail_path.exists():
+        generated_path = processor.generate_thumbnail(
+            str(asset.id),
+            original_path,
+            asset.media_type,
+            None,
+            include_overlay=False,
+        )
+        if generated_path is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thumbnail not available.")
+
+    return _existing_file(str(plain_thumbnail_path), "Thumbnail file is missing.")
 
 
 def _parse_range_header(range_header: str, file_size: int) -> tuple[int, int] | None:

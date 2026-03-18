@@ -2,6 +2,7 @@ import { ArrowDownWideNarrow, LoaderCircle, MessageSquareText, Mic, Search } fro
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import Lightbox from "../components/Lightbox";
+import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
 import { getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
 import { useChatMessages, useChats, type ChatConversation, type ChatMediaAsset, type ChatMessageGroup } from "../hooks/useChats";
 
@@ -82,9 +83,11 @@ function ConversationRow({
 
 function ChatMediaThumbnail({
   asset,
+  showOverlays,
   onOpen,
 }: {
   asset: ChatMediaAsset;
+  showOverlays: boolean;
   onOpen: () => void;
 }) {
   return (
@@ -94,7 +97,7 @@ function ChatMediaThumbnail({
       className="overflow-hidden rounded-[1rem] border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
     >
       <img
-        src={getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0)}
+        src={getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0, showOverlays)}
         alt={asset.media_type}
         loading="lazy"
         decoding="async"
@@ -132,9 +135,11 @@ function ChatVoiceMessage({
 
 function MessageBubble({
   message,
+  showOverlays,
   onOpenMedia,
 }: {
   message: ChatMessageGroup;
+  showOverlays: boolean;
   onOpenMedia: (assetId: string) => void;
 }) {
   return (
@@ -157,13 +162,18 @@ function MessageBubble({
 
           {message.media_assets.length > 0 ? (
             <div className={`${message.text ? "mt-3" : ""} flex flex-wrap gap-2`}>
-              {message.media_assets.map((asset) => (
+              {message.media_assets.map((asset) =>
                 asset.media_type === "audio" ? (
                   <ChatVoiceMessage key={asset.id} asset={asset} />
                 ) : (
-                  <ChatMediaThumbnail key={asset.id} asset={asset} onOpen={() => onOpenMedia(asset.id)} />
+                  <ChatMediaThumbnail
+                    key={asset.id}
+                    asset={asset}
+                    showOverlays={showOverlays}
+                    onOpen={() => onOpenMedia(asset.id)}
+                  />
                 )
-              ))}
+              )}
             </div>
           ) : null}
         </div>
@@ -176,6 +186,7 @@ function MessageBubble({
 }
 
 export default function Chats() {
+  const showOverlays = useShowMemoryOverlays();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [filter, setFilter] = useState<"all" | "has_media">("all");
@@ -323,6 +334,7 @@ export default function Chats() {
                     <MessageBubble
                       key={message.id}
                       message={message}
+                      showOverlays={showOverlays}
                       onOpenMedia={(assetId) => {
                         const index = flattenedMedia.findIndex((asset) => asset.id === assetId);
                         if (index < 0) {

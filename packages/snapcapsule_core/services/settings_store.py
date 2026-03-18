@@ -16,6 +16,7 @@ LOGGER_NAMES = [
 DEFAULT_PREFERENCES: dict[str, Any] = {
     "dark_mode": True,
     "autoplay_videos_in_grid": False,
+    "show_memory_overlays": True,
     "default_grid_size": "medium",
     "enable_debug_logging": False,
 }
@@ -27,6 +28,7 @@ VALID_GRID_SIZES = {"small", "medium", "large"}
 class StoredPreferences:
     dark_mode: bool
     autoplay_videos_in_grid: bool
+    show_memory_overlays: bool
     default_grid_size: str
     enable_debug_logging: bool
 
@@ -34,6 +36,7 @@ class StoredPreferences:
         return {
             "dark_mode": self.dark_mode,
             "autoplay_videos_in_grid": self.autoplay_videos_in_grid,
+            "show_memory_overlays": self.show_memory_overlays,
             "default_grid_size": self.default_grid_size,
             "enable_debug_logging": self.enable_debug_logging,
         }
@@ -83,6 +86,9 @@ class SettingsStore:
             dark_mode=bool(payload.get("dark_mode", DEFAULT_PREFERENCES["dark_mode"])),
             autoplay_videos_in_grid=bool(
                 payload.get("autoplay_videos_in_grid", DEFAULT_PREFERENCES["autoplay_videos_in_grid"])
+            ),
+            show_memory_overlays=bool(
+                payload.get("show_memory_overlays", DEFAULT_PREFERENCES["show_memory_overlays"])
             ),
             default_grid_size=grid_size,
             enable_debug_logging=bool(

@@ -48,6 +48,18 @@ export default function GeneralSettingsPanel({ settings, isSaving, onUpdate }: G
         </SettingRow>
 
         <SettingRow
+          title="Show Memory Overlays"
+          description="Display Snapchat overlay edits in memory thumbnails and the full-screen viewer."
+        >
+          <ToggleSwitch
+            label="Show Memory Overlays"
+            checked={settings.show_memory_overlays}
+            disabled={isSaving}
+            onCheckedChange={(checked) => void onUpdate({ show_memory_overlays: checked })}
+          />
+        </SettingRow>
+
+        <SettingRow
           title="Default Grid Size"
           description="Choose the thumbnail density you want the memories grid to prefer."
         >

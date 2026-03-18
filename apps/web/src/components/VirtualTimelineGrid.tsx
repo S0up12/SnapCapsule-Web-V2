@@ -3,6 +3,7 @@ import { Camera, Clapperboard, LoaderCircle, Star } from "lucide-react";
 import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AssetContextMenu from "./memories/AssetContextMenu";
+import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
 import { formatTimelineDate, formatTimelineGroup, getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
 
 type GridRow =
@@ -49,12 +50,14 @@ function TimelineTile({
   asset,
   width,
   height,
+  showOverlays,
   onOpen,
   onContextAction,
 }: {
   asset: TimelineAsset;
   width: number;
   height: number;
+  showOverlays: boolean;
   onOpen: () => void;
   onContextAction: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
@@ -69,7 +72,7 @@ function TimelineTile({
       style={{ width, height }}
     >
       <img
-        src={getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0)}
+        src={getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0, showOverlays)}
         alt={date.label}
         loading="lazy"
         decoding="async"
@@ -158,6 +161,7 @@ export default function VirtualTimelineGrid({
   onToggleFavorite,
   onEditTags,
 }: VirtualTimelineGridProps) {
+  const showOverlays = useShowMemoryOverlays();
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -389,6 +393,7 @@ export default function VirtualTimelineGrid({
                           asset={asset}
                           width={tileWidth}
                           height={tileHeight}
+                          showOverlays={showOverlays}
                           onOpen={() => onOpenAsset(index)}
                           onContextAction={(event) => {
                             event.preventDefault();

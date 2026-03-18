@@ -22,6 +22,7 @@ def _serialize_settings() -> AppSettingsResponse:
     return AppSettingsResponse(
         dark_mode=stored.dark_mode,
         autoplay_videos_in_grid=stored.autoplay_videos_in_grid,
+        show_memory_overlays=stored.show_memory_overlays,
         default_grid_size=stored.default_grid_size,
         enable_debug_logging=stored.enable_debug_logging,
         storage={

@@ -25,8 +25,9 @@ class MediaProcessor:
     def overlay_destination_path(self, asset_id: str, source_type: AssetSource, suffix: str) -> Path:
         return Path(self.settings.raw_media_dir) / source_type.value / f"{asset_id}_overlay{suffix.lower()}"
 
-    def thumbnail_destination_path(self, asset_id: str) -> Path:
-        return Path(self.settings.thumbnail_dir) / f"{asset_id}.jpg"
+    def thumbnail_destination_path(self, asset_id: str, *, include_overlay: bool = True) -> Path:
+        suffix = "" if include_overlay else "_plain"
+        return Path(self.settings.thumbnail_dir) / f"{asset_id}{suffix}.jpg"
 
     def store_media_file(
         self,
@@ -55,14 +56,17 @@ class MediaProcessor:
         media_path: str | Path,
         media_type: MediaType,
         overlay_path: str | Path | None = None,
+        *,
+        include_overlay: bool = True,
     ) -> Path | None:
-        destination = self.thumbnail_destination_path(asset_id)
+        destination = self.thumbnail_destination_path(asset_id, include_overlay=include_overlay)
         destination.parent.mkdir(parents=True, exist_ok=True)
+        active_overlay_path = overlay_path if include_overlay else None
 
         if media_type == MediaType.IMAGE:
-            return self._generate_image_thumbnail(media_path, destination, overlay_path)
+            return self._generate_image_thumbnail(media_path, destination, active_overlay_path)
         if media_type == MediaType.VIDEO:
-            return self._generate_video_thumbnail(media_path, destination, overlay_path)
+            return self._generate_video_thumbnail(media_path, destination, active_overlay_path)
         return None
 
     def detect_actual_media_type(self, media_path: str | Path, fallback: MediaType) -> MediaType:

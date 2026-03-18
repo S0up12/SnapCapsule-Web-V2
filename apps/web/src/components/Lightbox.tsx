@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Clapperboard, Image as ImageIcon, X } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 
+import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
 import { formatTimelineDate, getOriginalUrl, getOverlayUrl, type TimelineAsset } from "../hooks/useTimeline";
 
 type LightboxProps = {
@@ -12,6 +13,7 @@ type LightboxProps = {
 
 export default function Lightbox({ assets, currentIndex, onClose, onNavigate }: LightboxProps) {
   const asset = assets[currentIndex] ?? null;
+  const showOverlays = useShowMemoryOverlays();
   const [mediaFailed, setMediaFailed] = useState(false);
   const [overlayFailed, setOverlayFailed] = useState(false);
   const [mediaBox, setMediaBox] = useState<{ width: number; height: number } | null>(null);
@@ -178,7 +180,7 @@ export default function Lightbox({ assets, currentIndex, onClose, onNavigate }: 
                     className="col-start-1 row-start-1 block h-full w-full rounded-[1.5rem] object-contain"
                   />
                 )}
-                {asset.has_overlay && !overlayFailed ? (
+                {showOverlays && asset.has_overlay && !overlayFailed ? (
                   <img
                     src={overlayUrl}
                     alt=""

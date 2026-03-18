@@ -138,24 +138,39 @@ export function formatTimelineGroup(value: string | null) {
   };
 }
 
-function withCacheKey(url: string, cacheKey?: string | number | boolean | null) {
-  if (cacheKey === undefined || cacheKey === null) {
-    return url;
+function withQueryParams(
+  url: string,
+  params: Record<string, string | number | boolean | null | undefined>,
+) {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    searchParams.set(key, String(value));
   }
-  const params = new URLSearchParams({ v: String(cacheKey) });
-  return `${url}?${params.toString()}`;
+
+  const query = searchParams.toString();
+  return query ? `${url}?${query}` : url;
 }
 
-export function getThumbnailUrl(assetId: string, cacheKey?: string | number | boolean | null) {
-  return withCacheKey(`/api/asset/${assetId}/thumbnail`, cacheKey);
+export function getThumbnailUrl(
+  assetId: string,
+  cacheKey?: string | number | boolean | null,
+  includeOverlay: boolean = true,
+) {
+  return withQueryParams(`/api/asset/${assetId}/thumbnail`, {
+    v: cacheKey,
+    include_overlay: includeOverlay ? undefined : false,
+  });
 }
 
 export function getOriginalUrl(assetId: string, cacheKey?: string | number | boolean | null) {
-  return withCacheKey(`/api/asset/${assetId}/original`, cacheKey);
+  return withQueryParams(`/api/asset/${assetId}/original`, { v: cacheKey });
 }
 
 export function getOverlayUrl(assetId: string, cacheKey?: string | number | boolean | null) {
-  return withCacheKey(`/api/asset/${assetId}/overlay`, cacheKey);
+  return withQueryParams(`/api/asset/${assetId}/overlay`, { v: cacheKey });
 }
 
 export function useTimeline(filters: TimelineQueryState) {
