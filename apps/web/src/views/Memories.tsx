@@ -78,7 +78,7 @@ export default function Memories() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[1740px] flex-col gap-5">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1740px] flex-col gap-5 overflow-hidden">
       <section className="flex flex-col gap-4 rounded-[1.6rem] border border-slate-200/80 bg-white/82 px-5 py-4 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.045] md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-700/75 dark:text-cyan-300/70">

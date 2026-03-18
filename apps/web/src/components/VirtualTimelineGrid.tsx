@@ -1,6 +1,6 @@
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { Camera, Clapperboard, LoaderCircle, Star } from "lucide-react";
-import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AssetContextMenu from "./memories/AssetContextMenu";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
@@ -42,32 +42,34 @@ type ContextMenuState = {
 const GRID_GAP = 14;
 const MIN_TILE_WIDTH = 148;
 const PORTRAIT_RATIO = 16 / 9;
-const HEADER_ROW_ESTIMATE = 90;
+const HEADER_ROW_HEIGHT = 90;
 const SCROLL_FETCH_THRESHOLD = 1200;
 const BOTTOM_STATUS_THRESHOLD = 220;
 
-function TimelineTile({
+const TimelineTile = memo(function TimelineTile({
   asset,
+  index,
   width,
   height,
   showOverlays,
-  onOpen,
-  onContextAction,
+  onOpenAsset,
+  onRequestContextMenu,
 }: {
   asset: TimelineAsset;
+  index: number;
   width: number;
   height: number;
   showOverlays: boolean;
-  onOpen: () => void;
-  onContextAction: (event: MouseEvent<HTMLButtonElement>) => void;
+  onOpenAsset: (index: number) => void;
+  onRequestContextMenu: (event: MouseEvent<HTMLButtonElement>, asset: TimelineAsset, index: number) => void;
 }) {
   const date = formatTimelineDate(asset.taken_at);
 
   return (
     <button
       type="button"
-      onClick={onOpen}
-      onContextMenu={onContextAction}
+      onClick={() => onOpenAsset(index)}
+      onContextMenu={(event) => onRequestContextMenu(event, asset, index)}
       className="group relative overflow-hidden rounded-[1.35rem] border border-slate-200/70 bg-white text-left shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-sky-300/30 hover:shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/10 dark:bg-slate-950 dark:shadow-black/25"
       style={{ width, height }}
     >
@@ -98,7 +100,7 @@ function TimelineTile({
       </div>
     </button>
   );
-}
+});
 
 function LoadingState() {
   return (
@@ -169,6 +171,25 @@ export default function VirtualTimelineGrid({
   const activeStickyIndexRef = useRef(0);
   const handleScrollElementRef = useCallback((node: HTMLDivElement | null) => {
     setScrollElement(node);
+  }, []);
+  const handleOpenAsset = useCallback(
+    (index: number) => {
+      onOpenAsset(index);
+    },
+    [onOpenAsset],
+  );
+  const handleRequestContextMenu = useCallback((event: MouseEvent<HTMLButtonElement>, asset: TimelineAsset, index: number) => {
+    event.preventDefault();
+    const estimatedWidth = 240;
+    const estimatedHeight = 248;
+    const x = Math.min(event.clientX, window.innerWidth - estimatedWidth - 16);
+    const y = Math.min(event.clientY, window.innerHeight - estimatedHeight - 16);
+    setContextMenu({
+      asset,
+      index,
+      x,
+      y,
+    });
   }, []);
 
   useEffect(() => {
@@ -273,8 +294,9 @@ export default function VirtualTimelineGrid({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollElement,
-    estimateSize: (index) => (rows[index]?.type === "header" ? HEADER_ROW_ESTIMATE : tileHeight + GRID_GAP),
-    overscan: 8,
+    getItemKey: (index) => rows[index]?.key ?? index,
+    estimateSize: (index) => (rows[index]?.type === "header" ? HEADER_ROW_HEIGHT : tileHeight + GRID_GAP),
+    overscan: 12,
     rangeExtractor: (range) => {
       const activeStickyIndex =
         [...stickyIndexes].reverse().find((index) => range.startIndex >= index) ?? stickyIndexes[0] ?? 0;
@@ -322,10 +344,10 @@ export default function VirtualTimelineGrid({
 
   return (
     <>
-      <div className="rounded-[1.75rem] border border-slate-200/70 bg-white/75 p-3 shadow-[0_24px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950/55 dark:shadow-black/20 sm:p-4">
+      <div className="min-h-0 flex-1 rounded-[1.75rem] border border-slate-200/70 bg-white/75 p-3 shadow-[0_24px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950/55 dark:shadow-black/20 sm:p-4">
         <div
           ref={handleScrollElementRef}
-          className="relative h-[calc(100vh-16rem)] min-h-[560px] overflow-auto rounded-[1.35rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,248,252,0.96))] p-3 dark:border-white/5 dark:bg-[linear-gradient(180deg,rgba(8,14,24,0.95),rgba(4,8,14,0.98))]"
+          className="relative h-full min-h-0 overflow-auto overscroll-contain rounded-[1.35rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,248,252,0.96))] p-3 [scrollbar-gutter:stable] dark:border-white/5 dark:bg-[linear-gradient(180deg,rgba(8,14,24,0.95),rgba(4,8,14,0.98))]"
         >
           <div
             style={{
@@ -346,7 +368,6 @@ export default function VirtualTimelineGrid({
               return (
                 <div
                   key={row.key}
-                  ref={rowVirtualizer.measureElement}
                   data-index={virtualRow.index}
                   style={
                     isActiveStickyHeader
@@ -361,6 +382,7 @@ export default function VirtualTimelineGrid({
                           left: 0,
                           top: 0,
                           width: "100%",
+                          willChange: "transform",
                           transform: `translateY(${virtualRow.start}px)`,
                         }
                   }
@@ -391,23 +413,12 @@ export default function VirtualTimelineGrid({
                         <TimelineTile
                           key={asset.id}
                           asset={asset}
+                          index={index}
                           width={tileWidth}
                           height={tileHeight}
                           showOverlays={showOverlays}
-                          onOpen={() => onOpenAsset(index)}
-                          onContextAction={(event) => {
-                            event.preventDefault();
-                            const estimatedWidth = 240;
-                            const estimatedHeight = 248;
-                            const x = Math.min(event.clientX, window.innerWidth - estimatedWidth - 16);
-                            const y = Math.min(event.clientY, window.innerHeight - estimatedHeight - 16);
-                            setContextMenu({
-                              asset,
-                              index,
-                              x,
-                              y,
-                            });
-                          }}
+                          onOpenAsset={handleOpenAsset}
+                          onRequestContextMenu={handleRequestContextMenu}
                         />
                       ))}
                     </div>

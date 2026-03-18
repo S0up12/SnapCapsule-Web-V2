@@ -9,6 +9,7 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
+  const isContainedScrollRoute = location.pathname === "/chats" || location.pathname === "/memories";
 
   const routeMeta: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
     "/": {
@@ -36,8 +37,8 @@ export default function Layout() {
   const header = routeMeta[location.pathname] ?? routeMeta["/"];
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_26%),linear-gradient(180deg,_#edf4fb,_#e6eef8_48%,_#dbe7f2)] text-slate-900 dark:bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_26%),linear-gradient(180deg,_#06101a,_#04070c_48%,_#020407)] dark:text-slate-100">
-      <div className="flex min-h-screen">
+    <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_26%),linear-gradient(180deg,_#edf4fb,_#e6eef8_48%,_#dbe7f2)] text-slate-900 dark:bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_26%),linear-gradient(180deg,_#06101a,_#04070c_48%,_#020407)] dark:text-slate-100">
+      <div className="flex h-full min-h-0">
         <aside
           className={[
             "hidden shrink-0 border-r border-slate-200/70 bg-white/75 p-5 backdrop-blur dark:border-white/10 dark:bg-slate-950/70 xl:block",
@@ -50,7 +51,7 @@ export default function Layout() {
           />
         </aside>
 
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/70 backdrop-blur dark:border-white/10 dark:bg-slate-950/55">
             <div className="flex items-center justify-between gap-4 px-4 py-4 md:px-6 xl:px-8">
               <div className="flex items-center gap-3 xl:hidden">
@@ -82,7 +83,12 @@ export default function Layout() {
 
           <IngestionStatusBanner />
 
-          <main className="flex-1 px-4 py-4 md:px-6 md:py-6 xl:px-8 xl:py-8">
+          <main
+            className={[
+              "min-h-0 flex-1 px-4 py-4 md:px-6 md:py-6 xl:px-8 xl:py-8",
+              isContainedScrollRoute ? "overflow-hidden" : "overflow-y-auto",
+            ].join(" ")}
+          >
             <Outlet />
           </main>
         </div>

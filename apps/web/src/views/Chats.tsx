@@ -503,7 +503,7 @@ export default function Chats() {
   );
 
   return (
-    <section className="flex h-[calc(100vh-10rem)] min-h-[42rem] w-full overflow-hidden rounded-[1.9rem] border border-slate-200/80 bg-white/84 shadow-[0_28px_80px_rgba(15,23,42,0.1)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-black/25">
+    <section className="flex h-full min-h-0 w-full overflow-hidden rounded-[1.9rem] border border-slate-200/80 bg-white/84 shadow-[0_28px_80px_rgba(15,23,42,0.1)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-black/25">
       <aside className="flex w-[30%] min-w-[20rem] max-w-[28rem] flex-col border-r border-slate-200/80 bg-white/78 dark:border-white/10 dark:bg-slate-950/55">
         <div className="border-b border-slate-200/80 px-4 py-4 dark:border-white/10">
           <div className="relative">
