@@ -1,5 +1,5 @@
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
-import { Camera, Clapperboard, LoaderCircle, Star } from "lucide-react";
+import { Camera, Clapperboard, LoaderCircle, Star, Tags } from "lucide-react";
 import { memo, type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AssetContextMenu from "./memories/AssetContextMenu";
@@ -62,6 +62,8 @@ const TimelineTile = memo(function TimelineTile({
   autoplayVideosInGrid,
   showOverlays,
   onOpenAsset,
+  onToggleFavorite,
+  onEditTags,
   onRequestContextMenu,
 }: {
   asset: TimelineAsset;
@@ -71,6 +73,8 @@ const TimelineTile = memo(function TimelineTile({
   autoplayVideosInGrid: boolean;
   showOverlays: boolean;
   onOpenAsset: (index: number) => void;
+  onToggleFavorite: (asset: TimelineAsset) => void;
+  onEditTags: (asset: TimelineAsset) => void;
   onRequestContextMenu: (event: MouseEvent<HTMLButtonElement>, asset: TimelineAsset, index: number) => void;
 }) {
   const date = formatTimelineDate(asset.taken_at);
@@ -120,16 +124,20 @@ const TimelineTile = memo(function TimelineTile({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpenAsset(index)}
-      onContextMenu={(event) => onRequestContextMenu(event, asset, index)}
+    <div
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onBlur={handleMouseLeave}
       className="group relative overflow-hidden rounded-[1.35rem] border border-slate-200/70 bg-white text-left shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-sky-300/30 hover:shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/10 dark:bg-slate-950 dark:shadow-black/25"
       style={{ width, height }}
     >
+      <button
+        type="button"
+        onClick={() => onOpenAsset(index)}
+        onContextMenu={(event) => onRequestContextMenu(event, asset, index)}
+        className="block h-full w-full"
+        aria-label={`Open ${asset.media_type} from ${date.label}`}
+      >
       {isPreviewingVideo ? (
         <div className="relative h-full w-full">
           <video
@@ -164,24 +172,48 @@ const TimelineTile = memo(function TimelineTile({
         />
       )}
 
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/18 to-transparent opacity-0 transition duration-200 group-hover:opacity-100">
-        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-3 pb-3 pt-12 text-white">
-          <div className="min-w-0">
-            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-white/72">{date.shortLabel}</p>
-            <div className="mt-1 inline-flex items-center gap-2 text-xs text-white/92">
-              {asset.media_type === "video" ? <Clapperboard className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />}
-              <span>{asset.media_type === "video" ? "Video" : "Photo"}</span>
-            </div>
-          </div>
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 transition duration-200 group-hover:opacity-100" />
+      </button>
 
-          {asset.is_favorite ? (
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/14 bg-white/10 backdrop-blur">
-              <Star className="h-4 w-4 fill-amber-300 text-amber-300" />
-            </span>
-          ) : null}
+      <div className="absolute inset-x-0 bottom-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center px-3 pb-3">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleFavorite(asset);
+          }}
+          className={[
+            "inline-flex items-center justify-self-start p-1 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] transition duration-150",
+            asset.is_favorite ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+          ].join(" ")}
+          aria-label={asset.is_favorite ? "Remove from favorites" : "Add to favorites"}
+          title={asset.is_favorite ? "Unfavorite" : "Favorite"}
+        >
+          <Star className={asset.is_favorite ? "h-4 w-4 fill-amber-300 text-amber-300" : "h-4 w-4 text-white/92"} />
+        </button>
+
+        <div className="pointer-events-none inline-flex items-center justify-center text-white opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+          {asset.media_type === "video" ? (
+            <Clapperboard className="h-4 w-4 text-white/92 drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]" />
+          ) : (
+            <Camera className="h-4 w-4 text-white/92 drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]" />
+          )}
         </div>
+
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onEditTags(asset);
+          }}
+          className="inline-flex items-center justify-self-end p-1 text-white opacity-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+          aria-label="Edit tags"
+          title="Edit tags"
+        >
+          <Tags className="h-4 w-4 text-white/92" />
+        </button>
       </div>
-    </button>
+    </div>
   );
 });
 
@@ -501,6 +533,10 @@ export default function VirtualTimelineGrid({
                           autoplayVideosInGrid={autoplayVideosInGrid}
                           showOverlays={showOverlays}
                           onOpenAsset={handleOpenAsset}
+                          onToggleFavorite={(asset) => {
+                            void onToggleFavorite(asset);
+                          }}
+                          onEditTags={onEditTags}
                           onRequestContextMenu={handleRequestContextMenu}
                         />
                       ))}

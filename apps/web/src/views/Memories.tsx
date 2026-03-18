@@ -1,10 +1,10 @@
-import { ArrowDownWideNarrow, ArrowUpWideNarrow, LoaderCircle, SlidersHorizontal, Tags } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, CalendarRange, LoaderCircle, SlidersHorizontal, Tags, X } from "lucide-react";
 import { type ReactNode, startTransition, useMemo, useState } from "react";
 
 import Lightbox from "../components/Lightbox";
 import VirtualTimelineGrid from "../components/VirtualTimelineGrid";
 import TagEditorModal from "../components/memories/TagEditorModal";
-import { useToggleFavorite, useUpdateAssetTags } from "../hooks/useAssetActions";
+import { useDeleteTimelineTag, useToggleFavorite, useUpdateAssetTags } from "../hooks/useAssetActions";
 import { useMemoryGridPreferences } from "../hooks/useMemoryGridPreferences";
 import {
   useTimeline,
@@ -34,10 +34,34 @@ function ControlSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="bg-transparent pr-6 text-sm font-medium outline-none"
+        className="bg-transparent pr-6 text-sm font-medium text-slate-900 outline-none [color-scheme:light] dark:text-slate-100 dark:[color-scheme:dark]"
       >
         {children}
       </select>
+    </label>
+  );
+}
+
+function ControlDate({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="inline-flex items-center gap-2 rounded-[1rem] border border-slate-200/80 bg-white/90 px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-white/10 dark:bg-slate-950/65 dark:text-slate-200">
+      <CalendarRange className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+      <span className="sr-only">{label}</span>
+      <input
+        type="date"
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="bg-transparent text-sm font-medium text-slate-900 outline-none [color-scheme:light] dark:text-slate-100 dark:[color-scheme:dark]"
+      />
     </label>
   );
 }
@@ -47,6 +71,8 @@ export default function Memories() {
   const [sort, setSort] = useState<TimelineSort>("desc");
   const [filter, setFilter] = useState<TimelineFilter>("all");
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [tagEditorAsset, setTagEditorAsset] = useState<TimelineAsset | null>(null);
 
@@ -54,10 +80,13 @@ export default function Memories() {
     sort,
     filter,
     tag: activeTag,
+    dateFrom: dateFrom || null,
+    dateTo: dateTo || null,
   });
   const timelineTagsQuery = useTimelineTags();
   const toggleFavorite = useToggleFavorite();
   const updateAssetTags = useUpdateAssetTags();
+  const deleteTimelineTag = useDeleteTimelineTag();
 
   const {
     assets,
@@ -93,8 +122,8 @@ export default function Memories() {
             value={sort}
             onChange={(value) => setSort(value as TimelineSort)}
           >
-            <option value="desc">Newest First</option>
-            <option value="asc">Oldest First</option>
+            <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="desc">Newest First</option>
+            <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="asc">Oldest First</option>
           </ControlSelect>
 
           <ControlSelect
@@ -103,10 +132,10 @@ export default function Memories() {
             value={filter}
             onChange={(value) => setFilter(value as TimelineFilter)}
           >
-            <option value="all">All</option>
-            <option value="favorites">Favorites</option>
-            <option value="photos">Photos Only</option>
-            <option value="videos">Videos Only</option>
+            <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="all">All</option>
+            <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="favorites">Favorites</option>
+            <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="photos">Photos Only</option>
+            <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="videos">Videos Only</option>
           </ControlSelect>
 
           <ControlSelect
@@ -115,13 +144,29 @@ export default function Memories() {
             value={activeTag ?? ""}
             onChange={(value) => setActiveTag(value || null)}
           >
-            <option value="">All Tags</option>
+            <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="">All Tags</option>
             {(timelineTagsQuery.data ?? []).map((tag) => (
-              <option key={tag} value={tag}>
+              <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" key={tag} value={tag}>
                 {tag}
               </option>
             ))}
           </ControlSelect>
+
+          <ControlDate label="From Date" value={dateFrom} onChange={setDateFrom} />
+          <ControlDate label="To Date" value={dateTo} onChange={setDateTo} />
+          {dateFrom || dateTo ? (
+            <button
+              type="button"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+              className="inline-flex items-center gap-2 rounded-[1rem] border border-slate-200/80 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-slate-950/65 dark:text-slate-200 dark:hover:text-white"
+            >
+              <X className="h-4 w-4" />
+              Clear Dates
+            </button>
+          ) : null}
         </div>
       </section>
 
@@ -155,10 +200,10 @@ export default function Memories() {
         />
       ) : null}
 
-      {(isFetchingNextPage || toggleFavorite.isPending || updateAssetTags.isPending) && assets.length > 0 ? (
+      {(isFetchingNextPage || toggleFavorite.isPending || updateAssetTags.isPending || deleteTimelineTag.isPending) && assets.length > 0 ? (
         <div className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/92 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur dark:border-white/10 dark:bg-slate-950/90 dark:text-slate-200 dark:shadow-black/30">
           <LoaderCircle className="h-4 w-4 animate-spin" />
-          {isFetchingNextPage ? "Fetching more assets" : "Saving changes"}
+          {isFetchingNextPage ? "Fetching more assets" : deleteTimelineTag.isPending ? "Deleting tag" : "Saving changes"}
         </div>
       ) : null}
 
@@ -175,6 +220,12 @@ export default function Memories() {
               setSelectedIndex(nextIndex);
             });
           }}
+          onToggleFavorite={async (asset) => {
+            await toggleFavorite.mutateAsync(asset.id);
+          }}
+          onEditTags={(asset) => {
+            setTagEditorAsset(asset);
+          }}
         />
       ) : null}
 
@@ -182,9 +233,16 @@ export default function Memories() {
         <TagEditorModal
           assetId={tagEditorAsset.id}
           initialTags={tagEditorAsset.tags}
+          availableTags={timelineTagsQuery.data ?? []}
           onClose={() => setTagEditorAsset(null)}
           onSave={async (tags) => {
             await updateAssetTags.mutateAsync({ assetId: tagEditorAsset.id, tags });
+          }}
+          onDeleteTag={async (tag) => {
+            await deleteTimelineTag.mutateAsync(tag);
+            if (activeTag?.trim().toLocaleLowerCase() === tag.trim().toLocaleLowerCase()) {
+              setActiveTag(null);
+            }
           }}
         />
       ) : null}

@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Clapperboard, Image as ImageIcon, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clapperboard, Image as ImageIcon, Star, Tags, X } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
@@ -9,9 +9,18 @@ type LightboxProps = {
   currentIndex: number;
   onClose: () => void;
   onNavigate: (nextIndex: number) => void;
+  onToggleFavorite?: (asset: TimelineAsset) => void | Promise<void>;
+  onEditTags?: (asset: TimelineAsset) => void;
 };
 
-export default function Lightbox({ assets, currentIndex, onClose, onNavigate }: LightboxProps) {
+export default function Lightbox({
+  assets,
+  currentIndex,
+  onClose,
+  onNavigate,
+  onToggleFavorite,
+  onEditTags,
+}: LightboxProps) {
   const asset = assets[currentIndex] ?? null;
   const showOverlays = useShowMemoryOverlays();
   const [mediaFailed, setMediaFailed] = useState(false);
@@ -136,6 +145,28 @@ export default function Lightbox({ assets, currentIndex, onClose, onNavigate }: 
           </div>
 
           <div className="flex items-center gap-2">
+            {onEditTags ? (
+              <button
+                type="button"
+                onClick={() => onEditTags(asset)}
+                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-slate-200 transition hover:bg-white/[0.1]"
+                title="Edit tags"
+              >
+                <Tags className="h-4.5 w-4.5" />
+              </button>
+            ) : null}
+            {onToggleFavorite ? (
+              <button
+                type="button"
+                onClick={() => {
+                  void onToggleFavorite(asset);
+                }}
+                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-slate-200 transition hover:bg-white/[0.1]"
+                title={asset.is_favorite ? "Unfavorite" : "Favorite"}
+              >
+                <Star className={asset.is_favorite ? "h-4.5 w-4.5 fill-amber-300 text-amber-300" : "h-4.5 w-4.5"} />
+              </button>
+            ) : null}
             <span className="hidden rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs uppercase tracking-[0.2em] text-slate-400 sm:inline-flex">
               {currentIndex + 1} / {assets.length}
             </span>

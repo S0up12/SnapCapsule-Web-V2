@@ -3,6 +3,7 @@ from __future__ import annotations
 import mimetypes
 import re
 import uuid
+from datetime import date
 from pathlib import Path
 from typing import Iterator
 
@@ -14,6 +15,7 @@ from apps.api.app.api.schemas import (
     AssetTagsUpdateRequest,
     DashboardStatsResponse,
     ErrorResponse,
+    TagDeleteResponse,
     TimelinePageResponse,
     TimelineTagsResponse,
 )
@@ -21,6 +23,7 @@ from snapcapsule_core.db import SessionLocal, session_scope
 from snapcapsule_core.models.enums import MediaType
 from snapcapsule_core.services.asset_queries import (
     TimelineFilters,
+    delete_asset_tag,
     get_asset_file_record,
     get_dashboard_stats,
     get_timeline_summary,
@@ -72,6 +75,8 @@ def get_timeline(
     media_type: str = Query("all", pattern="^(all|image|video)$"),
     favorite: bool = Query(False),
     tags: list[str] | None = Query(default=None),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
 ) -> TimelinePageResponse:
     """Return a paginated slice of processed assets for infinite-scroll gallery views."""
     filters = TimelineFilters(
@@ -79,6 +84,8 @@ def get_timeline(
         media_type=MediaType(media_type) if media_type in {"image", "video"} else None,
         favorite_only=favorite,
         tags=tuple(tag.strip() for tag in (tags or []) if tag.strip()),
+        date_from=date_from,
+        date_to=date_to,
     )
 
     with SessionLocal() as session:
@@ -153,6 +160,23 @@ def post_asset_tags(asset_id: uuid.UUID, payload: AssetTagsUpdateRequest) -> Ass
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
 
     return AssetMutationResponse(id=updated.id, is_favorite=updated.is_favorite, tags=list(updated.tags))
+
+
+@router.delete(
+    "/timeline/tags/{tag_name}",
+    response_model=TagDeleteResponse,
+    tags=["Timeline"],
+    summary="Delete a timeline tag",
+)
+def delete_timeline_tag(tag_name: str) -> TagDeleteResponse:
+    """Remove a tag from every memory asset that currently uses it."""
+    with session_scope() as session:
+        deleted = delete_asset_tag(session, tag_name)
+
+    if not deleted.tag:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tag name is required.")
+
+    return TagDeleteResponse(tag=deleted.tag, affected_assets=deleted.affected_assets)
 
 
 @router.get(

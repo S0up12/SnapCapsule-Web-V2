@@ -161,6 +161,20 @@ class AssetMutationResponse(BaseModel):
     tags: list[str] = Field(..., description="Latest normalized tag list after the mutation.")
 
 
+class TagDeleteResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "tag": "vacation",
+                "affected_assets": 12,
+            }
+        }
+    )
+
+    tag: str = Field(..., description="Deleted tag label.")
+    affected_assets: int = Field(..., description="Number of assets that had the deleted tag removed.")
+
+
 class AssetTagsUpdateRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={

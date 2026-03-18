@@ -555,10 +555,10 @@ export default function Chats() {
               <select
                 value={sort}
                 onChange={(event) => setSort(event.target.value as "newest" | "oldest")}
-                className="w-full bg-transparent outline-none"
+                className="w-full bg-transparent text-slate-900 outline-none [color-scheme:light] dark:text-slate-100 dark:[color-scheme:dark]"
               >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
+                <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="newest">Newest First</option>
+                <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="oldest">Oldest First</option>
               </select>
             </label>
 
@@ -567,10 +567,10 @@ export default function Chats() {
               <select
                 value={filter}
                 onChange={(event) => setFilter(event.target.value as "all" | "has_media")}
-                className="w-full bg-transparent outline-none"
+                className="w-full bg-transparent text-slate-900 outline-none [color-scheme:light] dark:text-slate-100 dark:[color-scheme:dark]"
               >
-                <option value="all">All</option>
-                <option value="has_media">Has Media</option>
+                <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="all">All</option>
+                <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="has_media">Has Media</option>
               </select>
             </label>
           </div>

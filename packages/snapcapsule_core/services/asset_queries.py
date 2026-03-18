@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import Select, case, cast, desc, func, select
 from sqlalchemy.dialects.postgresql import JSONB
@@ -18,6 +18,8 @@ class TimelineFilters:
     media_type: MediaType | None = None
     favorite_only: bool = False
     tags: tuple[str, ...] = ()
+    date_from: date | None = None
+    date_to: date | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,7 +64,14 @@ class AssetMutationRecord:
     tags: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class TagDeleteRecord:
+    tag: str
+    affected_assets: int
+
+
 def _base_asset_filters(filters: TimelineFilters):
+    ordering = func.coalesce(Asset.taken_at, Asset.created_at)
     clauses = [
         Asset.source_type == AssetSource.MEMORY,
         Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)),
@@ -76,6 +85,10 @@ def _base_asset_filters(filters: TimelineFilters):
         clauses.append(Asset.is_favorite.is_(True))
     for tag in filters.tags:
         clauses.append(cast(Asset.tags, JSONB).contains([tag]))
+    if filters.date_from is not None:
+        clauses.append(ordering >= datetime.combine(filters.date_from, time.min, tzinfo=timezone.utc))
+    if filters.date_to is not None:
+        clauses.append(ordering < datetime.combine(filters.date_to + timedelta(days=1), time.min, tzinfo=timezone.utc))
 
     return clauses
 
@@ -202,6 +215,34 @@ def update_asset_tags(session: Session, asset_id: uuid.UUID, tags: list[str]) ->
         is_favorite=asset.is_favorite,
         tags=tuple(asset.tags or ()),
     )
+
+
+def delete_asset_tag(session: Session, tag: str) -> TagDeleteRecord:
+    normalized_target = tag.strip()
+    normalized_key = normalized_target.lower()
+    if not normalized_target:
+        return TagDeleteRecord(tag="", affected_assets=0)
+
+    assets = session.execute(
+        select(Asset).where(
+            Asset.source_type == AssetSource.MEMORY,
+            Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)),
+            Asset.tags.is_not(None),
+        )
+    ).scalars()
+
+    affected_assets = 0
+    for asset in assets:
+        current_tags = list(asset.tags or ())
+        next_tags = [value for value in current_tags if str(value).strip().lower() != normalized_key]
+        if len(next_tags) == len(current_tags):
+            continue
+
+        asset.tags = next_tags
+        affected_assets += 1
+
+    session.flush()
+    return TagDeleteRecord(tag=normalized_target, affected_assets=affected_assets)
 
 
 def get_dashboard_stats(session: Session) -> DashboardStatsRecord:

@@ -32,6 +32,8 @@ export type TimelineQueryState = {
   sort: TimelineSort;
   filter: TimelineFilter;
   tag: string | null;
+  dateFrom: string | null;
+  dateTo: string | null;
 };
 
 const PAGE_SIZE = 100;
@@ -54,6 +56,12 @@ function buildTimelineSearchParams(offset: number, filters: TimelineQueryState) 
   }
   if (filters.tag) {
     params.append("tags", filters.tag);
+  }
+  if (filters.dateFrom) {
+    params.set("date_from", filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    params.set("date_to", filters.dateTo);
   }
 
   return params;
@@ -175,7 +183,7 @@ export function getOverlayUrl(assetId: string, cacheKey?: string | number | bool
 
 export function useTimeline(filters: TimelineQueryState) {
   const query = useInfiniteQuery({
-    queryKey: ["timeline", filters.sort, filters.filter, filters.tag ?? ""],
+    queryKey: ["timeline", filters.sort, filters.filter, filters.tag ?? "", filters.dateFrom ?? "", filters.dateTo ?? ""],
     initialPageParam: 0,
     queryFn: ({ pageParam }) => fetchTimelinePage(pageParam, filters),
     getNextPageParam: (lastPage, pages) => {

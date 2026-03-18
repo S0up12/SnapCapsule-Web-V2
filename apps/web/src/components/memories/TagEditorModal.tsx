@@ -1,17 +1,65 @@
-import { Check, Plus, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Check, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 type TagEditorModalProps = {
   assetId: string;
   initialTags: string[];
+  availableTags: string[];
   onClose: () => void;
   onSave: (tags: string[]) => Promise<void>;
+  onDeleteTag: (tag: string) => Promise<void>;
 };
 
-export default function TagEditorModal({ assetId, initialTags, onClose, onSave }: TagEditorModalProps) {
+function normalizeTagKey(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+export default function TagEditorModal({
+  assetId,
+  initialTags,
+  availableTags,
+  onClose,
+  onSave,
+  onDeleteTag,
+}: TagEditorModalProps) {
   const [draftTags, setDraftTags] = useState<string[]>(() => [...initialTags]);
   const [nextTag, setNextTag] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingTagKey, setDeletingTagKey] = useState<string | null>(null);
+  const suggestionId = `memory-tag-suggestions-${assetId}`;
+
+  const availableTagEntries = useMemo(() => {
+    const selectedKeys = new Set(draftTags.map(normalizeTagKey));
+    return availableTags
+      .filter((tag) => {
+      const normalized = normalizeTagKey(tag);
+        return Boolean(normalized);
+      })
+      .map((tag) => ({
+        tag,
+        isSelected: selectedKeys.has(normalizeTagKey(tag)),
+      }));
+  }, [availableTags, draftTags]);
+
+  function addTagFromValue(value: string) {
+    const normalizedInput = normalizeTagKey(value);
+    if (!normalizedInput) {
+      return;
+    }
+
+    const canonicalTag =
+      availableTags.find((tag) => normalizeTagKey(tag) === normalizedInput) ??
+      draftTags.find((tag) => normalizeTagKey(tag) === normalizedInput) ??
+      value.trim();
+
+    setDraftTags((current) => {
+      if (current.some((tag) => normalizeTagKey(tag) === normalizedInput)) {
+        return current;
+      }
+      return [...current, canonicalTag];
+    });
+    setNextTag("");
+  }
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -26,16 +74,6 @@ export default function TagEditorModal({ assetId, initialTags, onClose, onSave }
     };
   }, [onClose]);
 
-  function addTag() {
-    const normalized = nextTag.trim();
-    if (!normalized) {
-      return;
-    }
-
-    setDraftTags((current) => (current.includes(normalized) ? current : [...current, normalized]));
-    setNextTag("");
-  }
-
   async function handleSave() {
     setIsSaving(true);
     try {
@@ -43,6 +81,25 @@ export default function TagEditorModal({ assetId, initialTags, onClose, onSave }
       onClose();
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteTag(tag: string) {
+    const normalizedKey = normalizeTagKey(tag);
+    if (!normalizedKey) {
+      return;
+    }
+    const confirmed = window.confirm(`Delete the tag "${tag}" from all memories?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingTagKey(normalizedKey);
+    try {
+      await onDeleteTag(tag);
+      setDraftTags((current) => current.filter((value) => normalizeTagKey(value) !== normalizedKey));
+    } finally {
+      setDeletingTagKey(null);
     }
   }
 
@@ -73,18 +130,26 @@ export default function TagEditorModal({ assetId, initialTags, onClose, onSave }
           <input
             value={nextTag}
             onChange={(event) => setNextTag(event.target.value)}
+            list={availableTags.length > 0 ? suggestionId : undefined}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
-                addTag();
+                addTagFromValue(nextTag);
               }
             }}
             placeholder="Add a tag"
             className="flex-1 rounded-[1rem] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100"
           />
+          {availableTags.length > 0 ? (
+            <datalist id={suggestionId}>
+              {availableTags.map((tag) => (
+                <option key={tag} value={tag} />
+              ))}
+            </datalist>
+          ) : null}
           <button
             type="button"
-            onClick={addTag}
+            onClick={() => addTagFromValue(nextTag)}
             className="inline-flex items-center gap-2 rounded-[1rem] border border-sky-300/20 bg-sky-400/[0.12] px-4 py-3 text-sm font-medium text-sky-900 transition hover:bg-sky-400/[0.18] dark:text-sky-100"
           >
             <Plus className="h-4 w-4" />
@@ -92,13 +157,49 @@ export default function TagEditorModal({ assetId, initialTags, onClose, onSave }
           </button>
         </div>
 
+        {availableTagEntries.length > 0 ? (
+          <div className="mt-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Existing Tags</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {availableTagEntries.map(({ tag, isSelected }) => (
+                <div
+                  key={tag}
+                  className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950/70"
+                >
+                  <button
+                    type="button"
+                    onClick={() => addTagFromValue(tag)}
+                    disabled={isSelected}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-slate-700 transition hover:text-sky-700 disabled:cursor-default disabled:text-slate-400 dark:text-slate-200 dark:hover:text-sky-200 dark:disabled:text-slate-500"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>{tag}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteTag(tag)}
+                    disabled={deletingTagKey === normalizeTagKey(tag)}
+                    className="inline-flex items-center justify-center border-l border-slate-200 px-2.5 py-1.5 text-slate-400 transition hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-slate-500 dark:hover:text-rose-300"
+                    aria-label={`Delete tag ${tag}`}
+                    title={`Delete tag ${tag}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-5 flex min-h-[5rem] flex-wrap gap-2 rounded-[1.2rem] border border-slate-200/80 bg-slate-50/90 p-4 dark:border-white/10 dark:bg-white/[0.03]">
           {draftTags.length > 0 ? (
             draftTags.map((tag) => (
               <button
                 key={tag}
                 type="button"
-                onClick={() => setDraftTags((current) => current.filter((value) => value !== tag))}
+                onClick={() =>
+                  setDraftTags((current) => current.filter((value) => normalizeTagKey(value) !== normalizeTagKey(tag)))
+                }
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm transition hover:border-rose-300/40 hover:text-rose-700 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-200 dark:hover:text-rose-200"
               >
                 <span>{tag}</span>
