@@ -1,5 +1,5 @@
 import { ArrowDownWideNarrow, LoaderCircle, MessageSquareText, Mic, Search } from "lucide-react";
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import Lightbox from "../components/Lightbox";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
@@ -42,6 +42,92 @@ function avatarInitials(value: string) {
 
   const parts = trimmed.split(/\s+/).slice(0, 2);
   return parts.map((part) => part.charAt(0).toUpperCase()).join("");
+}
+
+const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<]+/gi;
+const TRAILING_PUNCTUATION = /[),.!?:;\]]+$/;
+
+function normalizeMessageLink(rawValue: string) {
+  const trimmed = rawValue.trim();
+  const trailing = trimmed.match(TRAILING_PUNCTUATION)?.[0] ?? "";
+  const urlText = trailing ? trimmed.slice(0, -trailing.length) : trimmed;
+
+  if (!urlText) {
+    return null;
+  }
+
+  const href = /^https?:\/\//i.test(urlText) ? urlText : `https://${urlText}`;
+  try {
+    new URL(href);
+  } catch {
+    return null;
+  }
+
+  return {
+    href,
+    label: urlText,
+    trailing,
+  };
+}
+
+function renderMessageText(text: string, isMe: boolean) {
+  const segments: Array<string | { href: string; label: string }> = [];
+  let cursor = 0;
+
+  for (const match of text.matchAll(URL_PATTERN)) {
+    const matchedText = match[0];
+    const start = match.index ?? 0;
+    const normalized = normalizeMessageLink(matchedText);
+    if (!normalized) {
+      continue;
+    }
+
+    if (start > cursor) {
+      segments.push(text.slice(cursor, start));
+    }
+
+    segments.push({
+      href: normalized.href,
+      label: normalized.label,
+    });
+
+    if (normalized.trailing) {
+      segments.push(normalized.trailing);
+    }
+
+    cursor = start + matchedText.length;
+  }
+
+  if (cursor < text.length) {
+    segments.push(text.slice(cursor));
+  }
+
+  if (segments.length === 0) {
+    segments.push(text);
+  }
+
+  return (
+    <p className="whitespace-pre-wrap break-words text-sm leading-6">
+      {segments.map((segment, index) =>
+        typeof segment === "string" ? (
+          <Fragment key={index}>{segment}</Fragment>
+        ) : (
+          <a
+            key={index}
+            href={segment.href}
+            target="_blank"
+            rel="noreferrer"
+            className={[
+              "underline decoration-current/45 underline-offset-4 transition hover:decoration-current",
+              isMe ? "text-white" : "text-sky-700 dark:text-sky-300",
+            ].join(" ")}
+          >
+            {segment.label}
+          </a>
+        )
+      )}
+    </p>
+  );
 }
 
 function ConversationRow({
@@ -113,21 +199,15 @@ function ChatVoiceMessage({
   asset: ChatMediaAsset;
 }) {
   return (
-    <div className="w-[20rem] max-w-full rounded-[1rem] border border-black/10 bg-black/5 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/14 text-sky-700 dark:text-sky-200">
-          <Mic className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Voice Message</p>
-          <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">Audio attachment</p>
-        </div>
+    <div className="flex w-[19rem] max-w-full items-center gap-3 rounded-[1rem] border border-black/10 bg-black/5 px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-500/14 text-sky-700 dark:text-sky-200">
+        <Mic className="h-4.5 w-4.5" />
       </div>
       <audio
         controls
         preload="metadata"
         src={getOriginalUrl(asset.id)}
-        className="mt-3 block w-full"
+        className="block min-w-0 flex-1"
       />
     </div>
   );
@@ -157,7 +237,7 @@ function MessageBubble({
           ].join(" ")}
         >
           {message.text ? (
-            <p className="whitespace-pre-wrap text-sm leading-6">{message.text}</p>
+            renderMessageText(message.text, message.is_me)
           ) : null}
 
           {message.media_assets.length > 0 ? (
