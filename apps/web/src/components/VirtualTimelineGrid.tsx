@@ -5,7 +5,7 @@ import { memo, type MouseEvent, useCallback, useEffect, useMemo, useRef, useStat
 import AssetContextMenu from "./memories/AssetContextMenu";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
 import type { AppSettings } from "../hooks/useSettings";
-import { formatTimelineDate, formatTimelineGroup, getOriginalUrl, getOverlayUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
+import { formatTimelineGroup, getOriginalUrl, getOverlayUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
 
 type GridRow =
   | {
@@ -77,7 +77,6 @@ const TimelineTile = memo(function TimelineTile({
   onEditTags: (asset: TimelineAsset) => void;
   onRequestContextMenu: (event: MouseEvent<HTMLButtonElement>, asset: TimelineAsset, index: number) => void;
 }) {
-  const date = formatTimelineDate(asset.taken_at);
   const hoverPreviewTimeoutRef = useRef<number | null>(null);
   const [isPreviewingVideo, setIsPreviewingVideo] = useState(false);
   const canPreviewVideo = autoplayVideosInGrid && asset.media_type === "video";
@@ -136,7 +135,7 @@ const TimelineTile = memo(function TimelineTile({
         onClick={() => onOpenAsset(index)}
         onContextMenu={(event) => onRequestContextMenu(event, asset, index)}
         className="block h-full w-full"
-        aria-label={`Open ${asset.media_type} from ${date.label}`}
+        aria-label={`Open ${asset.media_type}`}
       >
       {isPreviewingVideo ? (
         <div className="relative h-full w-full">
@@ -165,7 +164,7 @@ const TimelineTile = memo(function TimelineTile({
       ) : (
         <img
           src={thumbnailUrl}
-          alt={date.label}
+          alt=""
           loading="lazy"
           decoding="async"
           className="h-full w-full object-cover"
@@ -304,6 +303,18 @@ export default function VirtualTimelineGrid({
       y,
     });
   }, []);
+  const handleToggleFavorite = useCallback(
+    (asset: TimelineAsset) => {
+      void onToggleFavorite(asset);
+    },
+    [onToggleFavorite],
+  );
+  const handleEditTags = useCallback(
+    (asset: TimelineAsset) => {
+      onEditTags(asset);
+    },
+    [onEditTags],
+  );
 
   useEffect(() => {
     const element = scrollElement;
@@ -533,10 +544,8 @@ export default function VirtualTimelineGrid({
                           autoplayVideosInGrid={autoplayVideosInGrid}
                           showOverlays={showOverlays}
                           onOpenAsset={handleOpenAsset}
-                          onToggleFavorite={(asset) => {
-                            void onToggleFavorite(asset);
-                          }}
-                          onEditTags={onEditTags}
+                          onToggleFavorite={handleToggleFavorite}
+                          onEditTags={handleEditTags}
                           onRequestContextMenu={handleRequestContextMenu}
                         />
                       ))}
