@@ -84,6 +84,14 @@ http://localhost:8000/health
 
 The frontend runs through Vite on port `3000`, the API runs on port `8000`, and both backend and frontend reload automatically when you save local files.
 
+## Tests
+
+Backend tests run against a dedicated Postgres test database so they do not touch the live archive metadata.
+
+```powershell
+.\scripts\run-backend-tests.ps1
+```
+
 ## Phase Scope
 
 This repo currently includes:

@@ -70,6 +70,17 @@ class TagDeleteRecord:
     affected_assets: int
 
 
+def _normalize_tags(tags: list[str] | tuple[str, ...]) -> list[str]:
+    normalized: dict[str, str] = {}
+    for raw_tag in tags:
+        value = str(raw_tag).strip()
+        if not value:
+            continue
+        normalized.setdefault(value.lower(), value)
+
+    return sorted(normalized.values(), key=str.lower)
+
+
 def _base_asset_filters(filters: TimelineFilters):
     ordering = func.coalesce(Asset.taken_at, Asset.created_at)
     clauses = [
@@ -152,14 +163,14 @@ def list_available_tags(session: Session) -> list[str]:
         )
     ).scalars()
 
-    tag_set: set[str] = set()
+    tag_map: dict[str, str] = {}
     for tags in rows:
         for tag in tags or []:
             normalized = str(tag).strip()
             if normalized:
-                tag_set.add(normalized)
+                tag_map.setdefault(normalized.lower(), normalized)
 
-    return sorted(tag_set, key=str.lower)
+    return sorted(tag_map.values(), key=str.lower)
 
 
 def get_asset_file_record(session: Session, asset_id: uuid.UUID) -> AssetFileRecord | None:
@@ -207,8 +218,7 @@ def update_asset_tags(session: Session, asset_id: uuid.UUID, tags: list[str]) ->
     if asset is None:
         return None
 
-    normalized_tags = sorted({tag.strip() for tag in tags if tag.strip()}, key=str.lower)
-    asset.tags = normalized_tags
+    asset.tags = _normalize_tags(tags)
     session.flush()
     return AssetMutationRecord(
         id=asset.id,

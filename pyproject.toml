@@ -23,8 +23,16 @@ dependencies = [
   "uvicorn[standard]==0.35.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest==8.4.1",
+]
+
 [tool.setuptools]
 package-dir = {"" = "packages"}
 
 [tool.setuptools.packages.find]
 where = ["packages"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
