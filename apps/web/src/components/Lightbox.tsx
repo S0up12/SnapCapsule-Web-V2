@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Clapperboard, Image as ImageIcon, X } from "lucide-react";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
 import { formatTimelineDate, getOriginalUrl, getOverlayUrl, type TimelineAsset } from "../hooks/useTimeline";
@@ -17,6 +17,8 @@ export default function Lightbox({ assets, currentIndex, onClose, onNavigate }: 
   const [mediaFailed, setMediaFailed] = useState(false);
   const [overlayFailed, setOverlayFailed] = useState(false);
   const [mediaBox, setMediaBox] = useState<{ width: number; height: number } | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const goPrevious = useEffectEvent(() => {
     if (currentIndex <= 0) {
@@ -81,6 +83,40 @@ export default function Lightbox({ assets, currentIndex, onClose, onNavigate }: 
       height: Math.max(1, Math.round(height * scale)),
     });
   }
+
+  const measureActiveMedia = useEffectEvent(() => {
+    if (isVideo) {
+      const element = videoRef.current;
+      if (element && element.videoWidth > 0 && element.videoHeight > 0) {
+        fitMediaBox(element.videoWidth, element.videoHeight);
+      }
+      return;
+    }
+
+    const element = imageRef.current;
+    if (element && element.complete && element.naturalWidth > 0 && element.naturalHeight > 0) {
+      fitMediaBox(element.naturalWidth, element.naturalHeight);
+    }
+  });
+
+  useEffect(() => {
+    if (!asset) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      measureActiveMedia();
+    });
+    const handleResize = () => {
+      measureActiveMedia();
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [asset?.id, asset?.media_type, measureActiveMedia]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 p-3 sm:p-5" onClick={onClose}>
@@ -151,6 +187,7 @@ export default function Lightbox({ assets, currentIndex, onClose, onNavigate }: 
                 {isVideo ? (
                   <video
                     key={asset.id}
+                    ref={videoRef}
                     src={mediaUrl}
                     controls
                     playsInline
@@ -168,6 +205,7 @@ export default function Lightbox({ assets, currentIndex, onClose, onNavigate }: 
                 ) : (
                   <img
                     key={asset.id}
+                    ref={imageRef}
                     src={mediaUrl}
                     alt={date.label}
                     onError={() => setMediaFailed(true)}
