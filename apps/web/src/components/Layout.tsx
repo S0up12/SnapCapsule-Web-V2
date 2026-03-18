@@ -2,6 +2,7 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
+import IngestionStatusBanner from "./IngestionStatusBanner";
 import Sidebar from "./Sidebar";
 
 export default function Layout() {
@@ -78,6 +79,8 @@ export default function Layout() {
               </div>
             </div>
           </header>
+
+          <IngestionStatusBanner />
 
           <main className="flex-1 px-4 py-4 md:px-6 md:py-6 xl:px-8 xl:py-8">
             <Outlet />

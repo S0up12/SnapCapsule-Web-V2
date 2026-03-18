@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from sqlalchemy.exc import OperationalError
@@ -19,6 +20,8 @@ from snapcapsule_core.services.ingestion_jobs import (
     summarize_exception_message,
 )
 from snapcapsule_core.tasks.media import process_asset_media
+
+logger = logging.getLogger(__name__)
 
 MAX_INGESTION_RETRIES = 3
 TRANSIENT_INGESTION_EXCEPTIONS = (OSError, OperationalError)
@@ -81,6 +84,18 @@ def extract_and_parse(self, job_id: str) -> dict[str, str]:
             job = session.get(IngestionJob, parsed_job_id, with_for_update=True)
             if job is None:
                 raise ValueError(f"Ingestion job {job_id} not found")
+            if (
+                job.celery_task_id
+                and job.celery_task_id != self.request.id
+                and job.status in ACTIVE_INGESTION_JOB_STATUSES
+            ):
+                logger.warning(
+                    "Ignoring duplicate ingestion task %s for job %s; active task is %s",
+                    self.request.id,
+                    job_id,
+                    job.celery_task_id,
+                )
+                return {"job_id": job_id, "status": "ignored"}
             if job.status == IngestionJobStatus.CANCELED:
                 return {"job_id": job_id, "status": IngestionJobStatus.CANCELED.value}
             job.celery_task_id = self.request.id

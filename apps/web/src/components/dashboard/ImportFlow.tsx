@@ -4,10 +4,10 @@ import { useEffect, useId, useRef, useState, type ChangeEvent, type DragEvent } 
 import {
   isTerminalIngestionStatus,
   useCancelIngestionJob,
-  useIngestionJob,
   type IngestionJob,
   type IngestionStartResponse,
 } from "../../hooks/useIngestionJob";
+import { useActiveIngestion } from "../../hooks/useActiveIngestion";
 
 type ImportFlowProps = {
   onRefreshDashboard: () => void;
@@ -18,25 +18,6 @@ type UploadState =
   | { stage: "idle"; message?: string }
   | { stage: "uploading"; message: string }
   | { stage: "error"; message: string };
-
-const ACTIVE_INGESTION_JOB_STORAGE_KEY = "snapcapsule:active-ingestion-job";
-
-function readPersistedJobId() {
-  return typeof window === "undefined" ? null : window.localStorage.getItem(ACTIVE_INGESTION_JOB_STORAGE_KEY);
-}
-
-function persistJobId(jobId: string | null) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  if (jobId) {
-    window.localStorage.setItem(ACTIVE_INGESTION_JOB_STORAGE_KEY, jobId);
-    return;
-  }
-
-  window.localStorage.removeItem(ACTIVE_INGESTION_JOB_STORAGE_KEY);
-}
 
 function statusHeading(status: IngestionJob["status"]) {
   switch (status) {
@@ -85,45 +66,42 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
   const inputId = useId();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>({ stage: "idle" });
-  const [activeJobId, setActiveJobId] = useState<string | null>(() => readPersistedJobId());
-  const [lastFinishedJob, setLastFinishedJob] = useState<IngestionJob | null>(null);
-  const jobQuery = useIngestionJob(activeJobId);
+  const {
+    activeJob,
+    activeJobId,
+    clearFinishedJob,
+    finishedJob: lastFinishedJob,
+    isRestoringActiveJob: isResumingActiveJob,
+    resumeError,
+    setTrackedJobId,
+  } = useActiveIngestion();
   const cancelMutation = useCancelIngestionJob();
   const isCompact = variant === "compact";
   const lastRefreshedCompletedJobId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!jobQuery.data) {
+    if (!lastFinishedJob) {
       return;
     }
 
-    if (!isTerminalIngestionStatus(jobQuery.data.status)) {
-      return;
-    }
-
-    persistJobId(null);
-    setLastFinishedJob(jobQuery.data);
-    setActiveJobId(null);
     setUploadState({ stage: "idle" });
 
-    if (jobQuery.data.status === "completed" && lastRefreshedCompletedJobId.current !== jobQuery.data.id) {
-      lastRefreshedCompletedJobId.current = jobQuery.data.id;
+    if (lastFinishedJob.status === "completed" && lastRefreshedCompletedJobId.current !== lastFinishedJob.id) {
+      lastRefreshedCompletedJobId.current = lastFinishedJob.id;
       onRefreshDashboard();
     }
-  }, [jobQuery.data, onRefreshDashboard]);
+  }, [lastFinishedJob, onRefreshDashboard]);
 
   useEffect(() => {
-    if (!jobQuery.isError || !activeJobId) {
+    if (!resumeError) {
       return;
     }
 
-    persistJobId(null);
-    setActiveJobId(null);
     setUploadState({
       stage: "error",
-      message: jobQuery.error instanceof Error ? jobQuery.error.message : "Failed to resume ingestion status.",
+      message: resumeError,
     });
-  }, [activeJobId, jobQuery.error, jobQuery.isError]);
+  }, [resumeError]);
 
   async function uploadArchives(files: File[]) {
     const validFiles = files.filter((file) => file.name.toLowerCase().endsWith(".zip"));
@@ -138,7 +116,7 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
       formData.append("archives", file);
     }
 
-    setLastFinishedJob(null);
+    clearFinishedJob();
     setUploadState({
       stage: "uploading",
       message:
@@ -167,8 +145,7 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
       }
 
       const payload = (await response.json()) as IngestionStartResponse;
-      persistJobId(payload.job_id);
-      setActiveJobId(payload.job_id);
+      setTrackedJobId(payload.job_id);
       setUploadState({
         stage: "idle",
         message:
@@ -227,9 +204,8 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
     handleDrop(event);
   }
 
-  const liveJob = jobQuery.data ?? lastFinishedJob;
+  const liveJob = activeJob ?? lastFinishedJob;
   const liveJobTone = liveJob ? statusTone(liveJob.status) : null;
-  const isResumingActiveJob = uploadState.stage !== "uploading" && activeJobId !== null && jobQuery.isLoading && !liveJob;
   const showLiveJob = uploadState.stage !== "uploading" && (liveJob !== null || isResumingActiveJob);
 
   return (
@@ -390,7 +366,7 @@ export default function ImportFlow({ onRefreshDashboard, variant = "full" }: Imp
                   <button
                     type="button"
                     onClick={() => {
-                      setLastFinishedJob(null);
+                      clearFinishedJob();
                       setUploadState({ stage: "idle" });
                     }}
                     className="inline-flex items-center gap-2 rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-white/15 hover:bg-white/[0.08]"
