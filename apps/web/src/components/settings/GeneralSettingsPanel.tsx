@@ -18,11 +18,7 @@ const GRID_SIZE_OPTIONS = [
 export default function GeneralSettingsPanel({ settings, isSaving, onUpdate }: GeneralSettingsPanelProps) {
   return (
     <div className="grid gap-6">
-      <SettingsCard
-        eyebrow="General"
-        title="Interface preferences"
-        description="Control how SnapCapsule feels while you browse, scroll, and review media."
-      >
+      <SettingsCard title="Interface">
         <SettingRow
           title="Dark Mode"
           description="Use the darker shell theme while working in the archive."

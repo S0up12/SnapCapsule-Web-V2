@@ -21,11 +21,7 @@ export default function DataStoragePanel({
 }: DataStoragePanelProps) {
   return (
     <div className="grid gap-6">
-      <SettingsCard
-        eyebrow="Library"
-        title="Library tools"
-        description="Use these tools when you want SnapCapsule to pick up more data or start fresh."
-      >
+      <SettingsCard title="Library">
         <SettingRow
           title="Scan for new archive folders"
           description="Look for new archive folders that were added to the library location outside the upload flow."

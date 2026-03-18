@@ -619,14 +619,8 @@ export default function Chats() {
             </div>
           </>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(241,245,249,0.95))] px-6 text-center dark:bg-[linear-gradient(180deg,rgba(8,14,24,0.92),rgba(5,10,18,0.98))]">
-            <div className="rounded-full border border-slate-200/80 bg-white/90 p-4 text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-200">
-              <MessageSquareText className="h-7 w-7" />
-            </div>
-            <h2 className="mt-5 text-2xl font-semibold text-slate-950 dark:text-white">Select a conversation to start reading</h2>
-            <p className="mt-3 max-w-lg text-sm leading-7 text-slate-600 dark:text-slate-400">
-              Choose a conversation from the left pane to load its messages and saved media in chronological order.
-            </p>
+          <div className="flex h-full items-center justify-center bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(241,245,249,0.95))] px-6 text-center dark:bg-[linear-gradient(180deg,rgba(8,14,24,0.92),rgba(5,10,18,0.98))]">
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Select a conversation.</p>
           </div>
         )}
       </div>

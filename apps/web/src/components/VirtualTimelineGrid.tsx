@@ -119,11 +119,7 @@ function LoadingState() {
 function EmptyState() {
   return (
     <div className="flex min-h-[440px] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-slate-300/70 bg-white/65 px-6 text-center dark:border-white/10 dark:bg-white/[0.02]">
-      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Memories</p>
-      <h2 className="mt-5 text-2xl font-semibold text-slate-950 dark:text-white">No memories match this filter</h2>
-      <p className="mt-3 max-w-lg text-sm leading-7 text-slate-600 dark:text-slate-400">
-        Try removing a tag or switching the filter back to all memories to repopulate the virtual grid.
-      </p>
+      <p className="text-sm font-medium text-slate-600 dark:text-slate-400">No memories match the current filter.</p>
     </div>
   );
 }

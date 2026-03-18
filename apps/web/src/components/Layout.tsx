@@ -11,26 +11,22 @@ export default function Layout() {
   const location = useLocation();
   const isContainedScrollRoute = location.pathname === "/chats" || location.pathname === "/memories";
 
-  const routeMeta: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
+  const routeMeta: Record<string, { eyebrow: string; title: string }> = {
     "/": {
       eyebrow: "Overview",
       title: "Dashboard",
-      subtitle: "Import more data and jump back into your archive.",
     },
     "/chats": {
       eyebrow: "Conversations",
       title: "Chats",
-      subtitle: "Read conversations and review shared media.",
     },
     "/memories": {
       eyebrow: "Archive",
       title: "Memories",
-      subtitle: "Browse your saved photos and videos.",
     },
     "/settings": {
       eyebrow: "Workspace",
       title: "Settings",
-      subtitle: "Adjust preferences and manage your library.",
     },
   };
 
@@ -74,7 +70,6 @@ export default function Layout() {
                     <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-950 dark:text-white md:text-3xl">
                       {header.title}
                     </h1>
-                    <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-400">{header.subtitle}</p>
                   </div>
                 </div>
               </div>

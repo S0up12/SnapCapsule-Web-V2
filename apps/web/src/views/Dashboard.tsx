@@ -11,10 +11,7 @@ function DashboardLoading() {
         <div className="flex h-20 w-20 items-center justify-center rounded-full border border-sky-300/20 bg-sky-300/[0.12] text-sky-100">
           <LoaderCircle className="h-9 w-9 animate-spin" />
         </div>
-        <h2 className="mt-6 text-2xl font-semibold text-white">Loading dashboard</h2>
-        <p className="mt-3 max-w-xl text-sm leading-7 text-slate-400">
-          Checking the archive status so we can decide whether to show the import flow or the live dashboard.
-        </p>
+        <h2 className="mt-6 text-2xl font-semibold text-white">Loading</h2>
       </div>
     </section>
   );

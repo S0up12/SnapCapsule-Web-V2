@@ -11,13 +11,11 @@ const CATEGORY_ITEMS = [
   {
     id: "general",
     label: "General",
-    description: "Theme, autoplay, and gallery defaults.",
     icon: SlidersHorizontal,
   },
   {
     id: "storage",
     label: "Library",
-    description: "Import maintenance and reset tools.",
     icon: HardDrive,
   },
 ] as const;
@@ -71,10 +69,7 @@ export default function Settings() {
           <div className="flex h-20 w-20 items-center justify-center rounded-full border border-sky-300/20 bg-sky-300/[0.12] text-sky-100">
             <LoaderCircle className="h-9 w-9 animate-spin" />
           </div>
-          <h2 className="mt-6 text-2xl font-semibold text-slate-950 dark:text-white">Loading settings</h2>
-          <p className="mt-3 max-w-xl text-sm leading-7 text-slate-600 dark:text-slate-400">
-            Loading your browsing preferences and library tools.
-          </p>
+          <h2 className="mt-6 text-2xl font-semibold text-slate-950 dark:text-white">Loading</h2>
         </div>
       </section>
     );
@@ -96,8 +91,7 @@ export default function Settings() {
     <section className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
       <div className="grid gap-6 xl:grid-cols-[16rem_minmax(0,1fr)]">
         <aside className="h-fit rounded-[1.8rem] border border-slate-200/70 bg-white/85 p-4 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.045]">
-          <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Categories</p>
-          <nav className="mt-4 space-y-2">
+          <nav className="space-y-2">
             {CATEGORY_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = activeCategory === item.id;
@@ -119,9 +113,6 @@ export default function Settings() {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">{item.label}</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-500">
-                      {item.description}
-                    </span>
                   </span>
                 </button>
               );
