@@ -19,12 +19,23 @@ export type AppSettingsUpdate = Partial<
   >
 >;
 
-function persistLocalSettings(settings: Pick<AppSettings, "dark_mode" | "show_memory_overlays">) {
+const LOCAL_SETTINGS_KEYS = {
+  darkMode: "snapcapsule:dark-mode",
+  showMemoryOverlays: "snapcapsule:show-memory-overlays",
+  autoplayVideosInGrid: "snapcapsule:autoplay-videos-in-grid",
+  defaultGridSize: "snapcapsule:default-grid-size",
+} as const;
+
+function persistLocalSettings(
+  settings: Pick<AppSettings, "dark_mode" | "show_memory_overlays" | "autoplay_videos_in_grid" | "default_grid_size">,
+) {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem("snapcapsule:dark-mode", String(settings.dark_mode));
-  window.localStorage.setItem("snapcapsule:show-memory-overlays", String(settings.show_memory_overlays));
+  window.localStorage.setItem(LOCAL_SETTINGS_KEYS.darkMode, String(settings.dark_mode));
+  window.localStorage.setItem(LOCAL_SETTINGS_KEYS.showMemoryOverlays, String(settings.show_memory_overlays));
+  window.localStorage.setItem(LOCAL_SETTINGS_KEYS.autoplayVideosInGrid, String(settings.autoplay_videos_in_grid));
+  window.localStorage.setItem(LOCAL_SETTINGS_KEYS.defaultGridSize, settings.default_grid_size);
 }
 
 async function fetchSettings(): Promise<AppSettings> {

@@ -32,11 +32,11 @@ export default function GeneralSettingsPanel({ settings, isSaving, onUpdate }: G
         </SettingRow>
 
         <SettingRow
-          title="Autoplay Videos in Grid"
-          description="Automatically begin muted playback for video tiles when supported by the gallery."
+          title="Preview Videos in Grid"
+          description="Start muted video previews after hovering over a video tile for a moment."
         >
           <ToggleSwitch
-            label="Autoplay Videos in Grid"
+            label="Preview Videos in Grid"
             checked={settings.autoplay_videos_in_grid}
             disabled={isSaving}
             onCheckedChange={(checked) => void onUpdate({ autoplay_videos_in_grid: checked })}

@@ -4,7 +4,8 @@ import { memo, type MouseEvent, useCallback, useEffect, useMemo, useRef, useStat
 
 import AssetContextMenu from "./memories/AssetContextMenu";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
-import { formatTimelineDate, formatTimelineGroup, getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
+import type { AppSettings } from "../hooks/useSettings";
+import { formatTimelineDate, formatTimelineGroup, getOriginalUrl, getOverlayUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
 
 type GridRow =
   | {
@@ -23,6 +24,8 @@ type GridRow =
 type VirtualTimelineGridProps = {
   assets: TimelineAsset[];
   total: number;
+  autoplayVideosInGrid: boolean;
+  defaultGridSize: AppSettings["default_grid_size"];
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   isInitialLoading: boolean;
@@ -40,17 +43,23 @@ type ContextMenuState = {
 };
 
 const GRID_GAP = 14;
-const MIN_TILE_WIDTH = 148;
 const PORTRAIT_RATIO = 16 / 9;
 const HEADER_ROW_HEIGHT = 90;
 const SCROLL_FETCH_THRESHOLD = 1200;
 const BOTTOM_STATUS_THRESHOLD = 220;
+const VIDEO_HOVER_PREVIEW_DELAY_MS = 1200;
+const GRID_SIZE_MIN_TILE_WIDTH: Record<AppSettings["default_grid_size"], number> = {
+  small: 124,
+  medium: 148,
+  large: 196,
+};
 
 const TimelineTile = memo(function TimelineTile({
   asset,
   index,
   width,
   height,
+  autoplayVideosInGrid,
   showOverlays,
   onOpenAsset,
   onRequestContextMenu,
@@ -59,27 +68,101 @@ const TimelineTile = memo(function TimelineTile({
   index: number;
   width: number;
   height: number;
+  autoplayVideosInGrid: boolean;
   showOverlays: boolean;
   onOpenAsset: (index: number) => void;
   onRequestContextMenu: (event: MouseEvent<HTMLButtonElement>, asset: TimelineAsset, index: number) => void;
 }) {
   const date = formatTimelineDate(asset.taken_at);
+  const hoverPreviewTimeoutRef = useRef<number | null>(null);
+  const [isPreviewingVideo, setIsPreviewingVideo] = useState(false);
+  const canPreviewVideo = autoplayVideosInGrid && asset.media_type === "video";
+  const thumbnailUrl = getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0, showOverlays);
+  const mediaUrl = getOriginalUrl(asset.id, asset.has_overlay ? 1 : 0);
+  const overlayUrl = asset.has_overlay ? getOverlayUrl(asset.id, 1) : null;
+
+  useEffect(() => {
+    setIsPreviewingVideo(false);
+  }, [asset.id, canPreviewVideo]);
+
+  useEffect(() => {
+    return () => {
+      if (hoverPreviewTimeoutRef.current !== null) {
+        window.clearTimeout(hoverPreviewTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function clearHoverPreviewTimeout() {
+    if (hoverPreviewTimeoutRef.current === null) {
+      return;
+    }
+    window.clearTimeout(hoverPreviewTimeoutRef.current);
+    hoverPreviewTimeoutRef.current = null;
+  }
+
+  function handleMouseEnter() {
+    if (!canPreviewVideo || isPreviewingVideo) {
+      return;
+    }
+    clearHoverPreviewTimeout();
+    hoverPreviewTimeoutRef.current = window.setTimeout(() => {
+      setIsPreviewingVideo(true);
+      hoverPreviewTimeoutRef.current = null;
+    }, VIDEO_HOVER_PREVIEW_DELAY_MS);
+  }
+
+  function handleMouseLeave() {
+    clearHoverPreviewTimeout();
+    if (isPreviewingVideo) {
+      setIsPreviewingVideo(false);
+    }
+  }
 
   return (
     <button
       type="button"
       onClick={() => onOpenAsset(index)}
       onContextMenu={(event) => onRequestContextMenu(event, asset, index)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onBlur={handleMouseLeave}
       className="group relative overflow-hidden rounded-[1.35rem] border border-slate-200/70 bg-white text-left shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-sky-300/30 hover:shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/10 dark:bg-slate-950 dark:shadow-black/25"
       style={{ width, height }}
     >
-      <img
-        src={getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0, showOverlays)}
-        alt={date.label}
-        loading="lazy"
-        decoding="async"
-        className="h-full w-full object-cover"
-      />
+      {isPreviewingVideo ? (
+        <div className="relative h-full w-full">
+          <video
+            src={mediaUrl}
+            poster={thumbnailUrl}
+            muted
+            loop
+            playsInline
+            autoPlay
+            preload="metadata"
+            disablePictureInPicture
+            className="h-full w-full object-cover"
+          />
+          {showOverlays && overlayUrl ? (
+            <img
+              src={overlayUrl}
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              decoding="async"
+              className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+            />
+          ) : null}
+        </div>
+      ) : (
+        <img
+          src={thumbnailUrl}
+          alt={date.label}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
+      )}
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/18 to-transparent opacity-0 transition duration-200 group-hover:opacity-100">
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-3 pb-3 pt-12 text-white">
@@ -151,6 +234,8 @@ async function copyShareableLink(assetId: string) {
 export default function VirtualTimelineGrid({
   assets,
   total,
+  autoplayVideosInGrid,
+  defaultGridSize,
   hasNextPage,
   isFetchingNextPage,
   isInitialLoading,
@@ -238,7 +323,8 @@ export default function VirtualTimelineGrid({
     };
   }, [contextMenu]);
 
-  const columnCount = Math.max(2, Math.floor((Math.max(containerWidth, 320) + GRID_GAP) / (MIN_TILE_WIDTH + GRID_GAP)));
+  const minTileWidth = GRID_SIZE_MIN_TILE_WIDTH[defaultGridSize];
+  const columnCount = Math.max(2, Math.floor((Math.max(containerWidth, 320) + GRID_GAP) / (minTileWidth + GRID_GAP)));
   const tileWidth = Math.max(
     132,
     Math.floor((Math.max(containerWidth, 320) - GRID_GAP * (columnCount - 1)) / columnCount),
@@ -412,6 +498,7 @@ export default function VirtualTimelineGrid({
                           index={index}
                           width={tileWidth}
                           height={tileHeight}
+                          autoplayVideosInGrid={autoplayVideosInGrid}
                           showOverlays={showOverlays}
                           onOpenAsset={handleOpenAsset}
                           onRequestContextMenu={handleRequestContextMenu}

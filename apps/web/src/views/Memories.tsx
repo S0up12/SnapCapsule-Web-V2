@@ -5,6 +5,7 @@ import Lightbox from "../components/Lightbox";
 import VirtualTimelineGrid from "../components/VirtualTimelineGrid";
 import TagEditorModal from "../components/memories/TagEditorModal";
 import { useToggleFavorite, useUpdateAssetTags } from "../hooks/useAssetActions";
+import { useMemoryGridPreferences } from "../hooks/useMemoryGridPreferences";
 import {
   useTimeline,
   useTimelineTags,
@@ -42,6 +43,7 @@ function ControlSelect({
 }
 
 export default function Memories() {
+  const { autoplayVideosInGrid, defaultGridSize } = useMemoryGridPreferences();
   const [sort, setSort] = useState<TimelineSort>("desc");
   const [filter, setFilter] = useState<TimelineFilter>("all");
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -133,6 +135,8 @@ export default function Memories() {
         <VirtualTimelineGrid
           assets={assets}
           total={total}
+          autoplayVideosInGrid={autoplayVideosInGrid}
+          defaultGridSize={defaultGridSize}
           hasNextPage={Boolean(hasNextPage)}
           isFetchingNextPage={isFetchingNextPage}
           isInitialLoading={isLoading}
