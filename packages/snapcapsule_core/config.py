@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     def preferences_file_path(self) -> Path:
         return Path(self.ingest_root_dir) / "user-preferences.json"
 
+    @property
+    def profile_snapshot_path(self) -> Path:
+        return Path(self.ingest_root_dir) / "profile-snapshot.json"
+
     def ensure_storage_dirs(self) -> None:
         Path(self.raw_media_dir).mkdir(parents=True, exist_ok=True)
         Path(self.thumbnail_dir).mkdir(parents=True, exist_ok=True)

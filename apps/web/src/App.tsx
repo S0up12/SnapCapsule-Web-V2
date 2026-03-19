@@ -4,6 +4,7 @@ import Layout from "./components/Layout";
 import Chats from "./views/Chats";
 import Dashboard from "./views/Dashboard";
 import Memories from "./views/Memories";
+import Profile from "./views/Profile";
 import Settings from "./views/Settings";
 
 export default function App() {
@@ -12,6 +13,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="/chats" element={<Chats />} />
           <Route path="/memories" element={<Memories />} />
           <Route path="/settings" element={<Settings />} />

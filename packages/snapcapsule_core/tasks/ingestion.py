@@ -20,6 +20,7 @@ from snapcapsule_core.services.ingestion_jobs import (
     set_job_metadata,
     summarize_exception_message,
 )
+from snapcapsule_core.services.profile_queries import persist_profile_snapshot_from_roots
 from snapcapsule_core.tasks.media import process_asset_media
 
 logger = logging.getLogger(__name__)
@@ -118,6 +119,10 @@ def extract_and_parse(self, job_id: str) -> dict[str, str]:
             if job.status == IngestionJobStatus.CANCELED:
                 raise JobCanceledError(f"Ingestion job {job_id} was canceled")
             prepared_source = service.prepare_source(job)
+            try:
+                persist_profile_snapshot_from_roots(settings, prepared_source.roots)
+            except Exception:
+                logger.warning("Failed to persist profile snapshot for ingestion job %s", job_id, exc_info=True)
             session.refresh(job)
             if job.status == IngestionJobStatus.CANCELED:
                 raise JobCanceledError(f"Ingestion job {job_id} was canceled")

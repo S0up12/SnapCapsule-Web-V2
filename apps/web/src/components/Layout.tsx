@@ -16,6 +16,10 @@ export default function Layout() {
       eyebrow: "Overview",
       title: "Dashboard",
     },
+    "/profile": {
+      eyebrow: "Workspace",
+      title: "Profile",
+    },
     "/chats": {
       eyebrow: "Conversations",
       title: "Chats",

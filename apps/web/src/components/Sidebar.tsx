@@ -5,6 +5,7 @@ import {
   House,
   MessageSquareMore,
   Settings2,
+  UserRound,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
@@ -16,6 +17,7 @@ type SidebarProps = {
 
 const navigationItems = [
   { to: "/", label: "Dashboard", icon: House, end: true },
+  { to: "/profile", label: "Profile", icon: UserRound },
   { to: "/chats", label: "Chats", icon: MessageSquareMore },
   { to: "/memories", label: "Memories", icon: Archive },
   { to: "/settings", label: "Settings", icon: Settings2 },

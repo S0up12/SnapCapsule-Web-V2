@@ -7,6 +7,7 @@ from apps.api.app.api.routes.assets import router as assets_router
 from apps.api.app.api.routes.chats import router as chats_router
 from apps.api.app.api.routes.health import router as health_router
 from apps.api.app.api.routes.ingestion import router as ingestion_router
+from apps.api.app.api.routes.profile import router as profile_router
 from apps.api.app.api.routes.settings import router as settings_router
 from apps.api.app.api.schemas import RootResponse
 from snapcapsule_core.config import get_settings
@@ -34,6 +35,10 @@ OPENAPI_TAGS = [
     {
         "name": "Dashboard",
         "description": "Summary endpoints used by the web dashboard to decide between import onboarding and stats views.",
+    },
+    {
+        "name": "Profile",
+        "description": "Imported Snapchat account, friends, and profile metadata used by the profile workspace.",
     },
     {
         "name": "Settings",
@@ -78,6 +83,7 @@ app.include_router(assets_router)
 app.include_router(chats_router)
 app.include_router(health_router)
 app.include_router(ingestion_router)
+app.include_router(profile_router)
 app.include_router(settings_router)
 
 

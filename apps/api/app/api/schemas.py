@@ -141,6 +141,121 @@ class DashboardStatsResponse(BaseModel):
     total_videos: int = Field(..., description="Total processed video assets available in the archive.")
 
 
+class ProfileAccountSummary(BaseModel):
+    username: str | None = Field(default=None, description="Primary Snapchat username from the export.")
+    display_name: str | None = Field(default=None, description="Best available display name from the export.")
+    country: str | None = Field(default=None, description="Country associated with the Snapchat account.")
+    created_at: datetime | None = Field(default=None, description="Account creation timestamp.")
+    account_creation_country: str | None = Field(default=None, description="Country recorded when the account was created.")
+    in_app_language: str | None = Field(default=None, description="Preferred in-app language recorded by Snapchat.")
+    platform_version: str | None = Field(default=None, description="Platform version value exported by Snapchat.")
+    registration_ip: str | None = Field(default=None, description="Registration IP if present in the export.")
+
+
+class ProfileCurrentDevice(BaseModel):
+    make: str | None = Field(default=None, description="Current device manufacturer reported in the export.")
+    model_name: str | None = Field(default=None, description="Current device model name or identifier.")
+    os_type: str | None = Field(default=None, description="Operating system type reported by Snapchat.")
+    language: str | None = Field(default=None, description="Current device language setting.")
+
+
+class ProfileDeviceHistoryEntry(BaseModel):
+    make: str | None = Field(default=None, description="Device manufacturer.")
+    model: str | None = Field(default=None, description="Device model identifier.")
+    device_type: str | None = Field(default=None, description="Device category such as PHONE.")
+    start_time: datetime | None = Field(default=None, description="Timestamp when the device started being used.")
+
+
+class ProfileFriendSummaryEntry(BaseModel):
+    username: str | None = Field(default=None, description="Friend username.")
+    display_name: str | None = Field(default=None, description="Friend display name.")
+    added_at: datetime | None = Field(default=None, description="Timestamp when the friend relationship started.")
+    source: str | None = Field(default=None, description="How the friend was added according to the export.")
+
+
+class ProfileFriendsSummary(BaseModel):
+    friends_count: int = Field(..., description="Number of current friends in the export.")
+    friend_requests_sent_count: int = Field(..., description="Number of outbound friend requests in the export.")
+    blocked_count: int = Field(..., description="Number of blocked users in the export.")
+    deleted_count: int = Field(..., description="Number of deleted friends in the export.")
+    ignored_count: int = Field(..., description="Number of ignored Snapchatters in the export.")
+    pending_count: int = Field(..., description="Number of pending requests in the export.")
+    top_friends: list[ProfileFriendSummaryEntry] = Field(..., description="Small preview list of recent or prominent friends.")
+
+
+class ProfileBitmojiSummary(BaseModel):
+    email: str | None = Field(default=None, description="Bitmoji account email if present.")
+    phone_number: str | None = Field(default=None, description="Bitmoji account phone number if present.")
+    account_created_at: datetime | None = Field(default=None, description="Bitmoji account creation timestamp.")
+    avatar_gender: str | None = Field(default=None, description="Bitmoji avatar gender reported by analytics.")
+    app_open_count: int = Field(..., description="Bitmoji app open count.")
+    outfit_save_count: int = Field(..., description="Saved Bitmoji outfit count.")
+    share_count: int = Field(..., description="Bitmoji share count.")
+
+
+class ProfileEngagementSummary(BaseModel):
+    application_opens: int = Field(..., description="Application opens recorded in the export.")
+    story_views: int = Field(..., description="Story views recorded in the export.")
+    discover_channels_viewed_count: int = Field(..., description="Distinct viewed Discover channel rows.")
+    ads_interacted_count: int = Field(..., description="Ads interacted with according to the export.")
+    breakdown_of_time_spent: list[str] = Field(..., description="Compact breakdown of time spent on app sections.")
+    interest_categories: list[str] = Field(..., description="Interest categories inferred by Snapchat.")
+    content_categories: list[str] = Field(..., description="Content categories inferred by Snapchat.")
+
+
+class ProfileEventLabel(BaseModel):
+    date: datetime | None = Field(default=None, description="Event timestamp.")
+    label: str | None = Field(default=None, description="Primary event label.")
+
+
+class ProfileEventValue(BaseModel):
+    date: datetime | None = Field(default=None, description="Event timestamp.")
+    value: str | None = Field(default=None, description="Event value shown in the profile workspace.")
+
+
+class ProfileSecurityDownload(BaseModel):
+    date: datetime | None = Field(default=None, description="Download report timestamp.")
+    label: str | None = Field(default=None, description="Download report status.")
+    value: str | None = Field(default=None, description="Email associated with the report.")
+
+
+class ProfileSecuritySummary(BaseModel):
+    login_count: int = Field(..., description="Number of login history entries in the export.")
+    latest_login_at: datetime | None = Field(default=None, description="Most recent login timestamp.")
+    latest_login_country: str | None = Field(default=None, description="Country of the most recent login.")
+    latest_login_status: str | None = Field(default=None, description="Status of the most recent login event.")
+    password_change_count: int = Field(..., description="Number of password change entries in account history.")
+    connected_permissions_count: int = Field(..., description="Number of connected app permission entries.")
+    two_factor_events: list[ProfileEventLabel] = Field(..., description="Recent two-factor authentication events.")
+    download_reports: list[ProfileSecurityDownload] = Field(..., description="Recent download report events.")
+
+
+class ProfileHistorySummary(BaseModel):
+    display_name_changes: list[ProfileEventValue] = Field(..., description="Recent display name changes.")
+    email_changes: list[ProfileEventValue] = Field(..., description="Recent email changes.")
+    mobile_number_changes: list[ProfileEventValue] = Field(..., description="Recent mobile number changes.")
+
+
+class ProfilePublicProfileSummary(BaseModel):
+    created_at: datetime | None = Field(default=None, description="Public profile creation timestamp if available.")
+    title: str | None = Field(default=None, description="Public profile title.")
+    location: str | None = Field(default=None, description="Public profile location.")
+    website: str | None = Field(default=None, description="Public profile website.")
+
+
+class ProfileResponse(BaseModel):
+    generated_at: datetime | None = Field(default=None, description="Timestamp when the compact profile snapshot was generated.")
+    account: ProfileAccountSummary
+    current_device: ProfileCurrentDevice
+    device_history: list[ProfileDeviceHistoryEntry] = Field(..., description="Recent device history preview.")
+    friends: ProfileFriendsSummary
+    bitmoji: ProfileBitmojiSummary
+    engagement: ProfileEngagementSummary
+    security: ProfileSecuritySummary
+    history: ProfileHistorySummary
+    public_profile: ProfilePublicProfileSummary
+
+
 class TimelineTagsResponse(BaseModel):
     tags: list[str] = Field(..., description="Distinct user-defined asset tags available for filtering.")
 
