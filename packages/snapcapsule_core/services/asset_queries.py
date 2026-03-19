@@ -8,7 +8,7 @@ from sqlalchemy import Select, case, cast, desc, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
-from snapcapsule_core.models import Asset
+from snapcapsule_core.models import Asset, MemoryItem
 from snapcapsule_core.models.enums import AssetSource, MediaType
 
 
@@ -81,8 +81,19 @@ def _normalize_tags(tags: list[str] | tuple[str, ...]) -> list[str]:
     return sorted(normalized.values(), key=str.lower)
 
 
-def _base_asset_filters(filters: TimelineFilters):
-    ordering = func.coalesce(Asset.taken_at, Asset.created_at)
+def _memory_timeline_subquery():
+    return (
+        select(
+            MemoryItem.asset_id.label("asset_id"),
+            func.min(MemoryItem.taken_at).label("taken_at"),
+            func.min(MemoryItem.position).label("position"),
+        )
+        .group_by(MemoryItem.asset_id)
+        .subquery()
+    )
+
+
+def _base_asset_filters(filters: TimelineFilters, timeline_taken_at):
     clauses = [
         Asset.source_type == AssetSource.MEMORY,
         Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)),
@@ -97,26 +108,32 @@ def _base_asset_filters(filters: TimelineFilters):
     for tag in filters.tags:
         clauses.append(cast(Asset.tags, JSONB).contains([tag]))
     if filters.date_from is not None:
-        clauses.append(ordering >= datetime.combine(filters.date_from, time.min, tzinfo=timezone.utc))
+        clauses.append(timeline_taken_at >= datetime.combine(filters.date_from, time.min, tzinfo=timezone.utc))
     if filters.date_to is not None:
-        clauses.append(ordering < datetime.combine(filters.date_to + timedelta(days=1), time.min, tzinfo=timezone.utc))
+        clauses.append(timeline_taken_at < datetime.combine(filters.date_to + timedelta(days=1), time.min, tzinfo=timezone.utc))
 
     return clauses
 
 
 def build_timeline_query(*, limit: int, offset: int, filters: TimelineFilters) -> Select:
-    ordering = func.coalesce(Asset.taken_at, Asset.created_at)
+    memory_timeline = _memory_timeline_subquery()
+    timeline_taken_at = func.coalesce(memory_timeline.c.taken_at, Asset.taken_at, Asset.created_at)
+    memory_position = memory_timeline.c.position
     order_by = (
-        ordering.asc(),
+        timeline_taken_at.asc(),
+        memory_position.desc().nulls_last(),
         Asset.id.asc(),
     ) if filters.sort_direction == "asc" else (
-        desc(ordering),
+        desc(timeline_taken_at),
+        memory_position.asc().nulls_last(),
         desc(Asset.id),
     )
 
     return (
-        select(Asset.id, Asset.taken_at, Asset.media_type, Asset.is_favorite, Asset.tags, Asset.overlay_path)
-        .where(*_base_asset_filters(filters))
+        select(Asset.id, timeline_taken_at, Asset.media_type, Asset.is_favorite, Asset.tags, Asset.overlay_path)
+        .select_from(Asset)
+        .outerjoin(memory_timeline, memory_timeline.c.asset_id == Asset.id)
+        .where(*_base_asset_filters(filters, timeline_taken_at))
         .order_by(*order_by)
         .limit(limit)
         .offset(offset)
@@ -139,12 +156,17 @@ def list_timeline_assets(session: Session, *, limit: int, offset: int, filters: 
 
 
 def get_timeline_summary(session: Session, filters: TimelineFilters) -> TimelineSummaryRecord:
+    memory_timeline = _memory_timeline_subquery()
+    timeline_taken_at = func.coalesce(memory_timeline.c.taken_at, Asset.taken_at, Asset.created_at)
     row = session.execute(
         select(
             func.count().label("total_assets"),
             func.sum(case((Asset.media_type == MediaType.IMAGE, 1), else_=0)).label("total_photos"),
             func.sum(case((Asset.media_type == MediaType.VIDEO, 1), else_=0)).label("total_videos"),
-        ).where(*_base_asset_filters(filters))
+        )
+        .select_from(Asset)
+        .outerjoin(memory_timeline, memory_timeline.c.asset_id == Asset.id)
+        .where(*_base_asset_filters(filters, timeline_taken_at))
     ).one()
 
     return TimelineSummaryRecord(

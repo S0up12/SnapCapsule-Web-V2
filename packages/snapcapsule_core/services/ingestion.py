@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import uuid
@@ -128,6 +129,8 @@ class IngestionService:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(member) as source, target.open("wb") as handle:
                     shutil.copyfileobj(source, handle)
+                member_timestamp = datetime(*member.date_time, tzinfo=UTC).timestamp()
+                os.utime(target, (member_timestamp, member_timestamp))
 
     def merge_snap_root(self, source_root: Path, destination_root: Path, archive_label: str) -> None:
         destination_root.mkdir(parents=True, exist_ok=True)
@@ -663,19 +666,22 @@ class IngestionService:
         payload = self.load_merged_json_payload(root_paths, "memories_history.json", self.merge_memories_payload)
         items = payload.get("Saved Media", []) if isinstance(payload, dict) else []
 
-        assigned_assets: list[tuple[IndexedAsset, dict[str, Any] | None]] = []
+        assigned_assets: list[tuple[IndexedAsset, dict[str, Any] | None, datetime | None, int | None]] = []
         if items:
-            for item in items:
+            for item_index, item in enumerate(items):
                 timestamp = self.parse_datetime(item.get("Date"))
                 asset = self.find_bucket_asset(state.memory_date_buckets, timestamp)
                 if asset is not None:
-                    assigned_assets.append((asset, item))
+                    if timestamp is not None:
+                        asset.taken_at = timestamp
+                        asset.asset.taken_at = timestamp
+                    assigned_assets.append((asset, item, timestamp, item_index))
         else:
-            for asset in sorted(memory_assets, key=lambda entry: entry.taken_at or datetime.min.replace(tzinfo=UTC)):
+            for position_index, asset in enumerate(sorted(memory_assets, key=lambda entry: entry.taken_at or datetime.min.replace(tzinfo=UTC))):
                 if asset.claimed:
                     continue
                 asset.claimed = True
-                assigned_assets.append((asset, None))
+                assigned_assets.append((asset, None, asset.taken_at, position_index))
 
         existing_asset_ids = {
             row[0]
@@ -683,20 +689,20 @@ class IngestionService:
                 select(MemoryItem.asset_id).where(MemoryItem.collection_id == collection.id)
             )
         }
-        position = 0
-        for asset, payload in assigned_assets:
+        next_position = 0
+        for asset, payload, memory_taken_at, memory_position in assigned_assets:
             if asset.asset.id in existing_asset_ids:
                 continue
             session.add(
                 MemoryItem(
                     collection=collection,
                     asset=asset.asset,
-                    taken_at=asset.taken_at,
-                    position=position,
+                    taken_at=memory_taken_at or asset.taken_at,
+                    position=memory_position if memory_position is not None else next_position,
                     raw_payload=payload,
                 )
             )
-            position += 1
+            next_position += 1
 
     def parse_stories(self, session: Session, root_paths: list[Path], state: IndexedAssetState) -> None:
         story_assets = [entry for entry in state.all_assets if entry.source_type == AssetSource.STORY]

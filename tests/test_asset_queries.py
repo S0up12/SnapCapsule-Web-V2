@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
+from sqlalchemy import select
+
+from snapcapsule_core.models import MemoryItem
 from snapcapsule_core.models.enums import AssetSource, MediaType
 from snapcapsule_core.services.asset_queries import (
     TimelineFilters,
@@ -11,6 +14,35 @@ from snapcapsule_core.services.asset_queries import (
     list_timeline_assets,
     update_asset_tags,
 )
+
+
+def test_list_timeline_assets_prefers_memory_item_chronology_over_asset_fallback(db_session, make_asset):
+    newer_asset = make_asset(
+        taken_at=datetime(2024, 6, 15, 9, 0, tzinfo=UTC),
+        tags=["Trip"],
+    )
+    older_asset = make_asset(
+        taken_at=datetime(2024, 6, 15, 8, 0, tzinfo=UTC),
+        tags=["Trip"],
+    )
+
+    memory_items = {
+        item.asset_id: item
+        for item in db_session.execute(select(MemoryItem)).scalars()
+    }
+    memory_items[newer_asset.id].taken_at = datetime(2024, 6, 15, 10, 30, tzinfo=UTC)
+    memory_items[newer_asset.id].position = 5
+    memory_items[older_asset.id].taken_at = datetime(2024, 6, 15, 10, 30, tzinfo=UTC)
+    memory_items[older_asset.id].position = 6
+    db_session.flush()
+
+    items = list_timeline_assets(db_session, limit=20, offset=0, filters=TimelineFilters(sort_direction="desc"))
+
+    assert [item.id for item in items] == [newer_asset.id, older_asset.id]
+    assert [item.taken_at for item in items] == [
+        datetime(2024, 6, 15, 10, 30, tzinfo=UTC),
+        datetime(2024, 6, 15, 10, 30, tzinfo=UTC),
+    ]
 
 
 def test_list_timeline_assets_applies_combined_filters(db_session, make_asset):
