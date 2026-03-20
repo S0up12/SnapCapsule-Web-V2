@@ -2,6 +2,7 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
+import { SHOW_STORIES_WORKSPACE } from "../features";
 import IngestionStatusBanner from "./IngestionStatusBanner";
 import Sidebar from "./Sidebar";
 
@@ -33,6 +34,13 @@ export default function Layout() {
       title: "Settings",
     },
   };
+
+  if (SHOW_STORIES_WORKSPACE) {
+    routeMeta["/stories"] = {
+      eyebrow: "Archive",
+      title: "Stories",
+    };
+  }
 
   const header = routeMeta[location.pathname] ?? routeMeta["/"];
 

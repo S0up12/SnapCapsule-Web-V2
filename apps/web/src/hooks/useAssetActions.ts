@@ -52,6 +52,26 @@ type ChatMessagesResponse = {
   has_more: boolean;
 };
 
+type StoryAsset = AssetMutationResponse & {
+  taken_at: string | null;
+  media_type: "image" | "video";
+  has_overlay: boolean;
+};
+
+type StoriesResponse = {
+  items: Array<{
+    id: string;
+    title: string;
+    story_type: "private" | "public" | "saved" | "unknown";
+    total_items: number;
+    earliest_posted_at: string | null;
+    latest_posted_at: string | null;
+    items: StoryAsset[];
+  }>;
+  total_collections: number;
+  total_story_items: number;
+};
+
 async function postFavorite(assetId: string): Promise<AssetMutationResponse> {
   const response = await fetch(`/api/asset/${assetId}/favorite`, {
     method: "POST",
@@ -94,6 +114,7 @@ function invalidateMemoryQueries(queryClient: ReturnType<typeof useQueryClient>)
   void queryClient.invalidateQueries({ queryKey: ["timeline-tags"] });
   void queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
   void queryClient.invalidateQueries({ queryKey: ["chat-messages"] });
+  void queryClient.invalidateQueries({ queryKey: ["stories"] });
 }
 
 function applyAssetMutation(queryClient: ReturnType<typeof useQueryClient>, nextAsset: AssetMutationResponse) {
@@ -140,6 +161,28 @@ function applyAssetMutation(queryClient: ReturnType<typeof useQueryClient>, next
       })),
     };
   });
+
+  queryClient.setQueryData<StoriesResponse>(["stories"], (current) => {
+    if (!current) {
+      return current;
+    }
+
+    return {
+      ...current,
+      items: current.items.map((collection) => ({
+        ...collection,
+        items: collection.items.map((asset) =>
+          asset.id === nextAsset.id
+            ? {
+                ...asset,
+                is_favorite: nextAsset.is_favorite,
+                tags: nextAsset.tags,
+              }
+            : asset,
+        ),
+      })),
+    };
+  });
 }
 
 function removeDeletedTagFromCaches(queryClient: ReturnType<typeof useQueryClient>, tag: string) {
@@ -175,6 +218,23 @@ function removeDeletedTagFromCaches(queryClient: ReturnType<typeof useQueryClien
       items: current.items.map((message) => ({
         ...message,
         media_assets: message.media_assets.map((asset) => ({
+          ...asset,
+          tags: asset.tags.filter((value) => value.trim().toLocaleLowerCase() !== normalizedKey),
+        })),
+      })),
+    };
+  });
+
+  queryClient.setQueryData<StoriesResponse>(["stories"], (current) => {
+    if (!current) {
+      return current;
+    }
+
+    return {
+      ...current,
+      items: current.items.map((collection) => ({
+        ...collection,
+        items: collection.items.map((asset) => ({
           ...asset,
           tags: asset.tags.filter((value) => value.trim().toLocaleLowerCase() !== normalizedKey),
         })),

@@ -9,6 +9,7 @@ from apps.api.app.api.routes.health import router as health_router
 from apps.api.app.api.routes.ingestion import router as ingestion_router
 from apps.api.app.api.routes.profile import router as profile_router
 from apps.api.app.api.routes.settings import router as settings_router
+from apps.api.app.api.routes.stories import router as stories_router
 from apps.api.app.api.schemas import RootResponse
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.db import init_database
@@ -39,6 +40,10 @@ OPENAPI_TAGS = [
     {
         "name": "Profile",
         "description": "Imported Snapchat account, friends, and profile metadata used by the profile workspace.",
+    },
+    {
+        "name": "Stories",
+        "description": "Imported Snapchat story collections and their attached media items.",
     },
     {
         "name": "Settings",
@@ -85,6 +90,7 @@ app.include_router(health_router)
 app.include_router(ingestion_router)
 app.include_router(profile_router)
 app.include_router(settings_router)
+app.include_router(stories_router)
 
 
 @app.get(

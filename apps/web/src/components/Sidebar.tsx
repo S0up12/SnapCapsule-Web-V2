@@ -5,9 +5,12 @@ import {
   House,
   MessageSquareMore,
   Settings2,
+  Sparkles,
   UserRound,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
+
+import { SHOW_STORIES_WORKSPACE } from "../features";
 
 type SidebarProps = {
   collapsed?: boolean;
@@ -21,7 +24,11 @@ const navigationItems = [
   { to: "/chats", label: "Chats", icon: MessageSquareMore },
   { to: "/memories", label: "Memories", icon: Archive },
   { to: "/settings", label: "Settings", icon: Settings2 },
-];
+].flatMap((item) => [item]);
+
+if (SHOW_STORIES_WORKSPACE) {
+  navigationItems.splice(2, 0, { to: "/stories", label: "Stories", icon: Sparkles });
+}
 
 export default function Sidebar({
   collapsed = false,
