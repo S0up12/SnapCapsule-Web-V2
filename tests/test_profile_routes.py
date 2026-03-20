@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from apps.api.app.api.routes import profile as profile_routes
+from snapcapsule_core.models import ProfileSnapshot
 from snapcapsule_core.services import profile_queries
 from snapcapsule_core.services.profile_queries import build_profile_snapshot
 
@@ -21,114 +22,111 @@ def _build_profile_app(SessionLocal, monkeypatch, settings) -> TestClient:
 
 
 def test_get_profile_route_returns_persisted_snapshot(db_session_factory, monkeypatch, tmp_path):
-    SessionLocal, _ = db_session_factory
+    SessionLocal, session_scope = db_session_factory
     snapshot_path = tmp_path / "profile-snapshot.json"
-    snapshot_path.write_text(
-        json.dumps(
-            {
-                "generated_at": "2026-03-19T10:00:00+00:00",
-                "account": {
-                    "username": "sammykastanja",
-                    "display_name": "Sammy",
-                    "country": "NL",
-                    "created_at": "2017-02-02T11:16:14+00:00",
-                    "account_creation_country": None,
-                    "in_app_language": None,
-                    "platform_version": None,
-                    "registration_ip": None,
-                },
-                "current_device": {
-                    "make": "Apple",
-                    "model_name": "iPhone17,3",
-                    "os_type": "iOS",
-                    "language": "nl-NL",
-                },
-                "device_history": [],
-                "ranking": {
-                    "snapscore": 101683,
-                    "total_friends": 73,
-                    "accounts_followed": 0,
-                    "spotlight_posts": 114,
-                    "top_spotlight_tags": ["#meme"],
-                },
-                "friends": {
-                    "friends_count": 2,
-                    "friend_requests_sent_count": 0,
-                    "blocked_count": 0,
-                    "deleted_count": 0,
-                    "ignored_count": 0,
-                    "pending_count": 0,
-                    "top_friends": [],
-                },
-                "bitmoji": {
-                    "email": None,
-                    "phone_number": None,
-                    "account_created_at": None,
-                    "avatar_gender": None,
-                    "app_open_count": 0,
-                    "outfit_save_count": 0,
-                    "share_count": 0,
-                },
-                "engagement": {
-                    "application_opens": 0,
-                    "story_views": 0,
-                    "discover_channels_viewed_count": 0,
-                    "ads_interacted_count": 0,
-                    "cohort_age": None,
-                    "derived_ad_demographic": None,
-                    "breakdown_of_time_spent": [],
-                    "interest_categories": [],
-                    "content_categories": [],
-                    "web_interactions": [],
-                    "app_interactions": [],
-                    "off_platform_share_count": 0,
-                    "latest_off_platform_share_at": None,
-                    "share_destinations": [],
-                },
-                "security": {
-                    "login_count": 0,
-                    "latest_login_at": None,
-                    "latest_login_country": None,
-                    "latest_login_status": None,
-                    "password_change_count": 0,
-                    "connected_permissions_count": 0,
-                    "latest_terms_acceptance_at": None,
-                    "two_factor_events": [],
-                    "download_reports": [],
-                    "connected_apps": [],
-                    "terms_acceptances": [],
-                },
-                "history": {
-                    "display_name_changes": [],
-                    "email_changes": [],
-                    "mobile_number_changes": [],
-                },
-                "location": {
-                    "latest_region": None,
-                    "latest_city": None,
-                    "latest_country": None,
-                    "frequent_regions": [],
-                    "raw_location_count": 0,
-                    "latest_coordinate_at": None,
-                    "latest_coordinate": None,
-                    "inferred_home": None,
-                    "inferred_work": None,
-                    "declared_home": None,
-                    "school_name": None,
-                    "visited_places": [],
-                    "business_visits": [],
-                    "snap_map_places": [],
-                },
-                "public_profile": {
-                    "created_at": None,
-                    "title": None,
-                    "location": None,
-                    "website": None,
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
+    snapshot = {
+        "generated_at": "2026-03-19T10:00:00+00:00",
+        "account": {
+            "username": "sammykastanja",
+            "display_name": "Sammy",
+            "country": "NL",
+            "created_at": "2017-02-02T11:16:14+00:00",
+            "account_creation_country": None,
+            "in_app_language": None,
+            "platform_version": None,
+            "registration_ip": None,
+        },
+        "current_device": {
+            "make": "Apple",
+            "model_name": "iPhone17,3",
+            "os_type": "iOS",
+            "language": "nl-NL",
+        },
+        "device_history": [],
+        "ranking": {
+            "snapscore": 101683,
+            "total_friends": 73,
+            "accounts_followed": 0,
+            "spotlight_posts": 114,
+            "top_spotlight_tags": ["#meme"],
+        },
+        "friends": {
+            "friends_count": 2,
+            "friend_requests_sent_count": 0,
+            "blocked_count": 0,
+            "deleted_count": 0,
+            "ignored_count": 0,
+            "pending_count": 0,
+            "top_friends": [],
+        },
+        "bitmoji": {
+            "email": None,
+            "phone_number": None,
+            "account_created_at": None,
+            "avatar_gender": None,
+            "app_open_count": 0,
+            "outfit_save_count": 0,
+            "share_count": 0,
+        },
+        "engagement": {
+            "application_opens": 0,
+            "story_views": 0,
+            "discover_channels_viewed_count": 0,
+            "ads_interacted_count": 0,
+            "cohort_age": None,
+            "derived_ad_demographic": None,
+            "breakdown_of_time_spent": [],
+            "interest_categories": [],
+            "content_categories": [],
+            "web_interactions": [],
+            "app_interactions": [],
+            "off_platform_share_count": 0,
+            "latest_off_platform_share_at": None,
+            "share_destinations": [],
+        },
+        "security": {
+            "login_count": 0,
+            "latest_login_at": None,
+            "latest_login_country": None,
+            "latest_login_status": None,
+            "password_change_count": 0,
+            "connected_permissions_count": 0,
+            "latest_terms_acceptance_at": None,
+            "two_factor_events": [],
+            "download_reports": [],
+            "connected_apps": [],
+            "terms_acceptances": [],
+        },
+        "history": {
+            "display_name_changes": [],
+            "email_changes": [],
+            "mobile_number_changes": [],
+        },
+        "location": {
+            "latest_region": None,
+            "latest_city": None,
+            "latest_country": None,
+            "frequent_regions": [],
+            "raw_location_count": 0,
+            "latest_coordinate_at": None,
+            "latest_coordinate": None,
+            "inferred_home": None,
+            "inferred_work": None,
+            "declared_home": None,
+            "school_name": None,
+            "visited_places": [],
+            "business_visits": [],
+            "snap_map_places": [],
+        },
+        "public_profile": {
+            "created_at": None,
+            "title": None,
+            "location": None,
+            "website": None,
+        },
+    }
+    with session_scope() as session:
+        session.add(ProfileSnapshot(id=1, snapshot=snapshot))
     settings = SimpleNamespace(profile_snapshot_path=snapshot_path)
     client = _build_profile_app(SessionLocal, monkeypatch, settings)
 
@@ -322,7 +320,7 @@ def test_get_profile_snapshot_falls_back_to_persisted_snapshot_when_rebuild_fail
     monkeypatch,
     tmp_path,
 ):
-    SessionLocal, _ = db_session_factory
+    SessionLocal, session_scope = db_session_factory
     snapshot_path = tmp_path / "profile-snapshot.json"
     snapshot_path.write_text(
         json.dumps(
@@ -354,7 +352,7 @@ def test_get_profile_snapshot_falls_back_to_persisted_snapshot_when_rebuild_fail
     )
     settings = SimpleNamespace(profile_snapshot_path=snapshot_path)
 
-    with SessionLocal() as session:
+    with session_scope() as session:
         monkeypatch.setattr(profile_queries, "discover_profile_roots", lambda _session, _settings: [tmp_path / "export"])
         monkeypatch.setattr(profile_queries, "build_profile_snapshot", lambda _settings, _roots: None)
 
@@ -362,3 +360,8 @@ def test_get_profile_snapshot_falls_back_to_persisted_snapshot_when_rebuild_fail
 
     assert snapshot is not None
     assert snapshot["account"]["username"] == "sammykastanja"
+
+    with session_scope() as session:
+        persisted = session.get(ProfileSnapshot, 1)
+        assert persisted is not None
+        assert persisted.snapshot["account"]["username"] == "sammykastanja"

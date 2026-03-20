@@ -12,8 +12,10 @@ from snapcapsule_core.models.enums import IngestionJobStatus
 from snapcapsule_core.queue import celery_app
 from snapcapsule_core.services.ingestion_jobs import (
     JobCanceledError,
+    append_public_job_event,
     cleanup_successful_upload_artifacts,
     mark_job_status,
+    record_public_job_metrics,
     summarize_exception_message,
 )
 from snapcapsule_core.services.media_processor import MediaProcessor
@@ -45,6 +47,7 @@ def _complete_job_if_finished(job: IngestionJob) -> None:
             progress_percent=100,
             finished=True,
         )
+        append_public_job_event(job, f"Media processing finished with {job.failed_assets} failed item(s)")
     else:
         mark_job_status(
             job,
@@ -53,6 +56,7 @@ def _complete_job_if_finished(job: IngestionJob) -> None:
             progress_percent=100,
             finished=True,
         )
+        append_public_job_event(job, "Ingestion completed successfully")
         cleanup_successful_upload_artifacts(job)
 
 
@@ -184,12 +188,30 @@ def process_asset_media(
                 checksum,
                 thumbnail_error=thumbnail_error,
             )
+            read_bytes = Path(source_path).stat().st_size if Path(source_path).exists() else stored_media.stat().st_size
+            write_bytes = stored_media.stat().st_size
+            if overlay_source_path and stored_overlay is not None:
+                overlay_read_bytes = Path(overlay_source_path).stat().st_size if Path(overlay_source_path).exists() else stored_overlay.stat().st_size
+                read_bytes += overlay_read_bytes
+                write_bytes += stored_overlay.stat().st_size
+            if thumbnail is not None and thumbnail.exists():
+                write_bytes += thumbnail.stat().st_size
+            record_public_job_metrics(
+                job,
+                read_bytes_delta=read_bytes,
+                write_bytes_delta=write_bytes,
+                operations_delta=1,
+            )
             job.processed_assets += 1
             job.progress_percent = _job_completion_percent(job)
-            if thumbnail_error:
-                job.detail_message = f"Processed {job.processed_assets} of {job.total_assets} media items"
-            else:
-                job.detail_message = f"Processed {job.processed_assets} of {job.total_assets} media items"
+            total_done = job.processed_assets + job.failed_assets
+            job.detail_message = f"Processed {total_done} of {job.total_assets} media items"
+            if (
+                total_done == 1
+                or total_done == job.total_assets
+                or total_done % max(25, job.total_assets // 20 or 1) == 0
+            ):
+                append_public_job_event(job, f"[media] Processed {total_done}/{job.total_assets} items")
             _complete_job_if_finished(job)
 
         return {"asset_id": asset_id, "status": "completed"}
@@ -224,6 +246,7 @@ def process_asset_media(
                     job.progress_percent = _job_completion_percent(job)
                     job.detail_message = f"Failed media items: {job.failed_assets}"
                     job.error_message = summary
+                    append_public_job_event(job, f"[media] Failed item {job.failed_assets}: {summary}")
                     _complete_job_if_finished(job)
                 else:
                     job.detail_message = "Transient media error, retrying"
@@ -240,6 +263,7 @@ def process_asset_media(
                 job.progress_percent = _job_completion_percent(job)
                 job.detail_message = f"Failed media items: {job.failed_assets}"
                 job.error_message = summary
+                append_public_job_event(job, f"[media] Failed item {job.failed_assets}: {summary}")
                 _complete_job_if_finished(job)
         raise
 

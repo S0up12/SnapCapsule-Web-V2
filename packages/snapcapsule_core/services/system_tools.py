@@ -104,12 +104,14 @@ def reset_archive_data(settings: Settings) -> ActionResult:
             else:
                 child.unlink(missing_ok=True)
 
+    settings.profile_snapshot_path.unlink(missing_ok=True)
+
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
     return ActionResult(
         status="ok",
-        message="Database and generated media were cleared. Archive is ready for a fresh import.",
+        message="Database, generated media, and saved profile data were cleared. Archive is ready for a fresh import.",
         affected_items=0,
     )
 

@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from snapcapsule_core.models import IngestionJob
+from snapcapsule_core.models import IngestionJob, ProfileSnapshot
 from snapcapsule_core.models.enums import IngestionSourceKind
 from snapcapsule_core.services.ingestion import IngestionService
 
@@ -28,7 +28,7 @@ PROFILE_JSON_FILES = (
 
 
 def get_profile_snapshot(session: Session, settings) -> dict[str, Any] | None:
-    persisted = load_profile_snapshot(settings)
+    persisted = load_profile_snapshot(session, settings)
     if persisted is not None and _snapshot_has_current_profile_shape(persisted):
         return persisted
 
@@ -40,19 +40,39 @@ def get_profile_snapshot(session: Session, settings) -> dict[str, Any] | None:
     if snapshot is None:
         return persisted
 
-    save_profile_snapshot(settings, snapshot)
+    save_profile_snapshot(session, snapshot)
     return snapshot
 
 
-def persist_profile_snapshot_from_roots(settings, roots: list[Path]) -> dict[str, Any] | None:
+def persist_profile_snapshot_from_roots(session: Session, settings, roots: list[Path]) -> dict[str, Any] | None:
     snapshot = build_profile_snapshot(settings, roots)
     if snapshot is None:
         return None
-    save_profile_snapshot(settings, snapshot)
+    save_profile_snapshot(session, snapshot)
     return snapshot
 
 
-def load_profile_snapshot(settings) -> dict[str, Any] | None:
+def load_profile_snapshot(session: Session, settings) -> dict[str, Any] | None:
+    db_snapshot = load_profile_snapshot_from_db(session)
+    if db_snapshot is not None:
+        return db_snapshot
+
+    legacy_snapshot = load_profile_snapshot_from_file(settings)
+    if legacy_snapshot is not None:
+        save_profile_snapshot(session, legacy_snapshot)
+        return legacy_snapshot
+
+    return None
+
+
+def load_profile_snapshot_from_db(session: Session) -> dict[str, Any] | None:
+    row = session.get(ProfileSnapshot, 1)
+    if row is None or not isinstance(row.snapshot, dict):
+        return None
+    return dict(row.snapshot)
+
+
+def load_profile_snapshot_from_file(settings) -> dict[str, Any] | None:
     path = settings.profile_snapshot_path
     if not path.exists() or not path.is_file():
         return None
@@ -65,9 +85,20 @@ def load_profile_snapshot(settings) -> dict[str, Any] | None:
     return raw_payload if isinstance(raw_payload, dict) else None
 
 
-def save_profile_snapshot(settings, snapshot: dict[str, Any]) -> None:
-    settings.profile_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    settings.profile_snapshot_path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+def save_profile_snapshot(session: Session, snapshot: dict[str, Any]) -> None:
+    generated_at = _parse_datetime(snapshot.get("generated_at"))
+    row = session.get(ProfileSnapshot, 1)
+    if row is None:
+        row = ProfileSnapshot(
+            id=1,
+            generated_at=generated_at,
+            snapshot=snapshot,
+        )
+        session.add(row)
+    else:
+        row.generated_at = generated_at
+        row.snapshot = snapshot
+    session.flush()
 
 
 def _snapshot_has_current_profile_shape(snapshot: dict[str, Any]) -> bool:

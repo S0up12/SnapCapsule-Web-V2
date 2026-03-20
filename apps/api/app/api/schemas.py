@@ -649,3 +649,23 @@ class IngestionJobResponse(BaseModel):
         default=None,
         description="Source-specific metadata captured during request intake and parsing.",
     )
+
+
+class IngestionJobsListResponse(BaseModel):
+    items: list[IngestionJobResponse] = Field(..., description="Recent ingestion jobs ordered newest first.")
+    total: int = Field(..., description="Number of jobs returned in this response.")
+
+
+class IngestionFailedItemResponse(BaseModel):
+    asset_id: UUID = Field(..., description="Asset identifier for the failed media item.")
+    filename: str = Field(..., description="Filename for the failed source media.")
+    media_type: str = Field(..., description="Media type associated with the failed item.")
+    processing_state: str | None = Field(default=None, description="Last known processing state for the failed item.")
+    error_message: str | None = Field(default=None, description="Failure message recorded for the item.")
+    source_path: str | None = Field(default=None, description="Original source path recorded during ingestion.")
+    available_path: str | None = Field(default=None, description="Resolved readable path available for troubleshooting.")
+
+
+class IngestionFailedItemsResponse(BaseModel):
+    items: list[IngestionFailedItemResponse] = Field(..., description="Failed items recorded for the ingestion job.")
+    total: int = Field(..., description="Number of failed items available for the ingestion job.")

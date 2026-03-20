@@ -1,22 +1,111 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 
-from apps.api.app.api.schemas import ErrorResponse, IngestionCancelRequest, IngestionJobResponse, IngestionStartResponse
+from apps.api.app.api.schemas import (
+    ErrorResponse,
+    IngestionCancelRequest,
+    IngestionFailedItemsResponse,
+    IngestionJobResponse,
+    IngestionJobsListResponse,
+    IngestionStartResponse,
+    SystemActionResponse,
+)
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.db import session_scope
 from snapcapsule_core.models import IngestionJob
 from snapcapsule_core.models.enums import IngestionJobStatus, IngestionSourceKind
+from snapcapsule_core.services.ingestion_diagnostics import (
+    acknowledge_ingestion_issues,
+    clear_terminal_ingestion_history,
+    list_failed_ingestion_assets,
+)
 from snapcapsule_core.queue import celery_app
 from snapcapsule_core.services.ingestion_jobs import ACTIVE_INGESTION_JOB_STATUSES, mark_job_status, public_job_metadata
 from snapcapsule_core.tasks.ingestion import extract_and_parse
+from sqlalchemy import desc, select
 
 router = APIRouter(prefix="/api/ingest")
 settings = get_settings()
+
+
+def _copy_upload_with_checksum(upload: UploadFile, destination: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size_bytes = 0
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("wb") as handle:
+        while True:
+            chunk = upload.file.read(1024 * 1024)
+            if not chunk:
+                break
+            handle.write(chunk)
+            digest.update(chunk)
+            size_bytes += len(chunk)
+    upload.file.seek(0)
+    return digest.hexdigest(), size_bytes
+
+
+def _bundle_fingerprint(file_manifest: list[dict[str, object]]) -> str:
+    payload = json.dumps(
+        sorted(file_manifest, key=lambda item: str(item["name"]).lower()),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _job_is_reusable_import(job: IngestionJob) -> bool:
+    return (
+        job.status in ACTIVE_INGESTION_JOB_STATUSES
+        or job.status == IngestionJobStatus.COMPLETED
+        or (job.processed_assets > 0 and job.failed_assets > 0 and job.total_assets > job.failed_assets)
+    )
+
+
+def _normalize_archive_manifest(
+    file_manifest: list[dict[str, object]],
+    upload_jobs: list[IngestionJob],
+) -> tuple[list[dict[str, object]], list[str], IngestionJob | None]:
+    reusable_jobs = [job for job in upload_jobs if _job_is_reusable_import(job)]
+    imported_checksums: set[str] = set()
+    latest_job_by_checksum: dict[str, IngestionJob] = {}
+    for job in reusable_jobs:
+        metadata = public_job_metadata(job) or {}
+        for checksum in metadata.get("archive_checksums", []) or []:
+            normalized = str(checksum).strip()
+            if not normalized:
+                continue
+            imported_checksums.add(normalized)
+            latest_job_by_checksum.setdefault(normalized, job)
+
+    seen_checksums_in_request: set[str] = set()
+    filtered_manifest: list[dict[str, object]] = []
+    skipped_filenames: list[str] = []
+    reused_job: IngestionJob | None = None
+    for entry in file_manifest:
+        checksum = str(entry.get("checksum_sha256") or "").strip()
+        filename = str(entry.get("name") or entry.get("stored_name") or "archive.zip")
+        if not checksum:
+            filtered_manifest.append(entry)
+            continue
+        if checksum in seen_checksums_in_request:
+            skipped_filenames.append(filename)
+            continue
+        seen_checksums_in_request.add(checksum)
+        if checksum in imported_checksums:
+            skipped_filenames.append(filename)
+            reused_job = reused_job or latest_job_by_checksum.get(checksum)
+            continue
+        filtered_manifest.append(entry)
+
+    return filtered_manifest, skipped_filenames, reused_job
 
 
 def serialize_job(job: IngestionJob) -> IngestionJobResponse:
@@ -112,25 +201,93 @@ async def start_ingestion(
         if not valid_archives:
             raise HTTPException(status_code=400, detail="Upload one or more .zip files.")
 
-        upload_bundle_dir = settings.ingest_upload_dir / str(job_id)
-        upload_bundle_dir.mkdir(parents=True, exist_ok=True)
+        temp_upload_bundle_dir = settings.ingest_upload_dir / "_incoming" / str(job_id)
+        temp_upload_bundle_dir.mkdir(parents=True, exist_ok=True)
+        file_manifest: list[dict[str, object]] = []
         uploaded_filenames: list[str] = []
         try:
             for index, upload in enumerate(valid_archives, start=1):
                 safe_name = Path(upload.filename or f"snapchat-export-{index}.zip").name
-                stored_path = upload_bundle_dir / f"{index:03d}-{safe_name}"
-                with stored_path.open("wb") as handle:
-                    shutil.copyfileobj(upload.file, handle)
+                stored_path = temp_upload_bundle_dir / f"{index:03d}-{safe_name}"
+                checksum_sha256, size_bytes = _copy_upload_with_checksum(upload, stored_path)
                 uploaded_filenames.append(safe_name)
+                file_manifest.append(
+                    {
+                        "name": safe_name,
+                        "stored_name": stored_path.name,
+                        "size_bytes": size_bytes,
+                        "checksum_sha256": checksum_sha256,
+                    }
+                )
         except Exception as exc:
-            shutil.rmtree(upload_bundle_dir, ignore_errors=True)
+            shutil.rmtree(temp_upload_bundle_dir, ignore_errors=True)
             raise HTTPException(status_code=500, detail=f"Failed to save uploaded archive(s): {exc}") from exc
+
+        with session_scope() as session:
+            upload_jobs = session.query(IngestionJob).filter(
+                IngestionJob.source_kind == IngestionSourceKind.UPLOAD,
+            ).order_by(IngestionJob.created_at.desc(), IngestionJob.id.desc()).all()
+
+            file_manifest, skipped_filenames, reused_job = _normalize_archive_manifest(file_manifest, upload_jobs)
+            if not file_manifest:
+                shutil.rmtree(temp_upload_bundle_dir, ignore_errors=True)
+                if reused_job is None:
+                    raise HTTPException(status_code=409, detail="All uploaded ZIP files have already been imported.")
+                return IngestionStartResponse(
+                    job_id=reused_job.id,
+                    task_id=reused_job.celery_task_id or "",
+                    status=reused_job.status,
+                    message=reused_job.detail_message or "These ZIP files were already imported.",
+                )
+
+            kept_names = {str(entry["stored_name"]) for entry in file_manifest}
+            for child in temp_upload_bundle_dir.iterdir():
+                if child.is_file() and child.name not in kept_names:
+                    child.unlink(missing_ok=True)
+
+            uploaded_filenames = [str(entry["name"]) for entry in file_manifest]
+            bundle_fingerprint = _bundle_fingerprint(file_manifest)
+            upload_bundle_dir = settings.ingest_upload_dir / bundle_fingerprint
+            workspace_path = settings.ingest_workspace_dir / bundle_fingerprint
+
+            existing_job = next(
+                (
+                    job
+                    for job in upload_jobs
+                    if (public_job_metadata(job) or {}).get("bundle_fingerprint") == bundle_fingerprint
+                    and _job_is_reusable_import(job)
+                ),
+                None,
+            )
+            if existing_job is not None:
+                shutil.rmtree(temp_upload_bundle_dir, ignore_errors=True)
+                return IngestionStartResponse(
+                    job_id=existing_job.id,
+                    task_id=existing_job.celery_task_id or "",
+                    status=existing_job.status,
+                    message=existing_job.detail_message or "These ZIP files were already imported.",
+                )
+
+        if upload_bundle_dir.exists():
+            shutil.rmtree(temp_upload_bundle_dir, ignore_errors=True)
+        else:
+            upload_bundle_dir.parent.mkdir(parents=True, exist_ok=True)
+            temp_upload_bundle_dir.replace(upload_bundle_dir)
 
         source_kind = IngestionSourceKind.UPLOAD
         source_path = upload_bundle_dir
         source_name = uploaded_filenames[0] if len(uploaded_filenames) == 1 else f"{len(uploaded_filenames)} uploaded archives"
         metadata["archive_count"] = len(uploaded_filenames)
         metadata["uploaded_filenames"] = uploaded_filenames
+        metadata["archive_checksums"] = [str(entry["checksum_sha256"]) for entry in file_manifest]
+        metadata["skipped_duplicate_archives"] = skipped_filenames
+        metadata["bundle_fingerprint"] = bundle_fingerprint
+        metadata["total_upload_bytes"] = sum(int(entry["size_bytes"]) for entry in file_manifest)
+        metadata["metrics_totals"] = {
+            "read_bytes": 0,
+            "write_bytes": 0,
+            "operations": 0,
+        }
     else:
         source_path = Path(directory_path or "").expanduser().resolve()
         if not source_path.exists() or not source_path.is_dir():
@@ -147,6 +304,7 @@ async def start_ingestion(
             source_kind=source_kind,
             source_name=source_name,
             source_path=str(source_path),
+            workspace_path=str(workspace_path) if uploaded_archives else None,
             status=IngestionJobStatus.QUEUED,
             detail_message="Queued for background ingestion",
             progress_percent=0,
@@ -173,6 +331,21 @@ async def start_ingestion(
 
 
 @router.get(
+    "/recent",
+    response_model=IngestionJobsListResponse,
+    tags=["Ingestion"],
+    summary="List recent ingestion jobs",
+)
+def list_recent_ingestion_jobs(limit: int = Query(8, ge=1, le=20)) -> IngestionJobsListResponse:
+    with session_scope() as session:
+        jobs = session.execute(
+            select(IngestionJob).order_by(desc(IngestionJob.created_at), desc(IngestionJob.id)).limit(limit)
+        ).scalars().all()
+
+    return IngestionJobsListResponse(items=[serialize_job(job) for job in jobs], total=len(jobs))
+
+
+@router.get(
     "/status",
     response_model=IngestionJobResponse,
     tags=["Ingestion"],
@@ -186,6 +359,61 @@ def get_ingestion_status(job_id: uuid.UUID = Query(..., description="Ingestion j
         if job is None:
             raise HTTPException(status_code=404, detail="Ingestion job not found.")
         return serialize_job(job)
+
+
+@router.post(
+    "/{job_id}/retry",
+    response_model=IngestionStartResponse,
+    tags=["Ingestion"],
+    summary="Retry an ingestion job from the same source",
+    responses={
+        404: {"model": ErrorResponse, "description": "The requested ingestion job does not exist."},
+        409: {"model": ErrorResponse, "description": "The requested ingestion job is still active."},
+    },
+)
+def retry_ingestion_job(job_id: uuid.UUID) -> IngestionStartResponse:
+    with session_scope() as session:
+        original_job = session.get(IngestionJob, job_id)
+        if original_job is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ingestion job not found.")
+        if original_job.status in ACTIVE_INGESTION_JOB_STATUSES:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This ingestion job is still active.")
+
+        source_path = Path(original_job.source_path)
+        if not source_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The uploaded archive bundle or source directory is no longer available.",
+            )
+
+        retried_job = IngestionJob(
+            source_kind=original_job.source_kind,
+            source_name=original_job.source_name,
+            source_path=original_job.source_path,
+            workspace_path=original_job.workspace_path if original_job.source_kind == IngestionSourceKind.UPLOAD else None,
+            status=IngestionJobStatus.QUEUED,
+            detail_message="Queued from retry",
+            progress_percent=0,
+            raw_metadata=public_job_metadata(original_job),
+        )
+        session.add(retried_job)
+        session.flush()
+        retried_job_id = retried_job.id
+
+    async_result = extract_and_parse.delay(str(retried_job_id))
+
+    with session_scope() as session:
+        job = session.get(IngestionJob, retried_job_id)
+        if job is None:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Retried job disappeared before queue dispatch.")
+        job.celery_task_id = async_result.id
+        job.detail_message = "Background ingestion queued"
+        return IngestionStartResponse(
+            job_id=retried_job_id,
+            task_id=async_result.id,
+            status=job.status,
+            message=job.detail_message or "Background ingestion queued",
+        )
 
 
 @router.post(
@@ -213,6 +441,7 @@ def cancel_ingestion_job(payload: IngestionCancelRequest = Body(...)) -> Ingesti
                 job,
                 status=IngestionJobStatus.CANCELED,
                 detail_message="Ingestion canceled by user",
+                progress_percent=100,
                 error_message=None,
                 finished=True,
             )
@@ -233,3 +462,86 @@ def get_ingestion_job(job_id: uuid.UUID) -> IngestionJobResponse:
         if job is None:
             raise HTTPException(status_code=404, detail="Ingestion job not found.")
         return serialize_job(job)
+
+
+@router.get(
+    "/{job_id}/failed-items",
+    response_model=IngestionFailedItemsResponse,
+    tags=["Ingestion"],
+    summary="List failed items for an ingestion job",
+)
+def get_failed_ingestion_items(job_id: uuid.UUID) -> IngestionFailedItemsResponse:
+    with session_scope() as session:
+        job = session.get(IngestionJob, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Ingestion job not found.")
+        items = list_failed_ingestion_assets(session, job_id, settings)
+
+    return IngestionFailedItemsResponse(
+        items=[
+            {
+                "asset_id": item.asset_id,
+                "filename": item.filename,
+                "media_type": item.media_type,
+                "processing_state": item.processing_state,
+                "error_message": item.error_message,
+                "source_path": item.source_path,
+                "available_path": item.available_path,
+            }
+            for item in items
+        ],
+        total=len(items),
+    )
+
+
+@router.get(
+    "/{job_id}/failed-items/{asset_id}/file",
+    response_class=FileResponse,
+    tags=["Ingestion"],
+    summary="Open a failed ingestion source file",
+)
+def get_failed_ingestion_item_file(job_id: uuid.UUID, asset_id: uuid.UUID):
+    with session_scope() as session:
+        job = session.get(IngestionJob, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Ingestion job not found.")
+        assets = list_failed_ingestion_assets(session, job_id, settings)
+        matched = next((item for item in assets if item.asset_id == asset_id), None)
+        if matched is None:
+            raise HTTPException(status_code=404, detail="Failed ingestion item not found.")
+        path = Path(matched.available_path) if matched.available_path else None
+        if path is None or not path.exists() or not path.is_file():
+            raise HTTPException(status_code=404, detail="Failed source file is no longer available.")
+
+    return FileResponse(path=path, filename=path.name)
+
+
+@router.post(
+    "/{job_id}/acknowledge-issues",
+    response_model=IngestionJobResponse,
+    tags=["Ingestion"],
+    summary="Acknowledge failed items for an ingestion job",
+)
+def post_acknowledge_ingestion_issues(job_id: uuid.UUID) -> IngestionJobResponse:
+    with session_scope() as session:
+        job = acknowledge_ingestion_issues(session, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Ingestion job not found.")
+        return serialize_job(job)
+
+
+@router.delete(
+    "/history",
+    response_model=SystemActionResponse,
+    tags=["Ingestion"],
+    summary="Clear terminal ingestion history",
+)
+def delete_ingestion_history() -> SystemActionResponse:
+    with session_scope() as session:
+        cleared = clear_terminal_ingestion_history(session)
+
+    return SystemActionResponse(
+        status="accepted",
+        message=f"Cleared {cleared} terminal import histor{'y' if cleared == 1 else 'ies'}.",
+        affected_items=cleared,
+    )

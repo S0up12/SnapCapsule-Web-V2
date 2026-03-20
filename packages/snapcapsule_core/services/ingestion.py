@@ -80,7 +80,12 @@ class IngestionService:
     def __init__(self, settings):
         self.settings = settings
 
-    def prepare_source(self, job: IngestionJob) -> PreparedSource:
+    def prepare_source(
+        self,
+        job: IngestionJob,
+        *,
+        extraction_progress_callback: Callable[[int, int, int, int, str], None] | None = None,
+    ) -> PreparedSource:
         source_path = Path(job.source_path)
         if job.source_kind == IngestionSourceKind.DIRECTORY:
             return PreparedSource(
@@ -89,7 +94,7 @@ class IngestionService:
                 preserve_source=True,
             )
 
-        workspace_path = self.settings.ingest_workspace_dir / str(job.id)
+        workspace_path = Path(job.workspace_path) if job.workspace_path else (self.settings.ingest_workspace_dir / str(job.id))
         if workspace_path.exists():
             shutil.rmtree(workspace_path)
         workspace_path.mkdir(parents=True, exist_ok=True)
@@ -108,7 +113,13 @@ class IngestionService:
         for index, archive_path in enumerate(archive_paths, start=1):
             extract_root = fragments_root / f"part-{index:03d}"
             extract_root.mkdir(parents=True, exist_ok=True)
-            self.safe_extract_zip(archive_path, extract_root)
+            self.safe_extract_zip(
+                archive_path,
+                extract_root,
+                archive_index=index,
+                total_archives=len(archive_paths),
+                progress_callback=extraction_progress_callback,
+            )
             roots.append(self.find_snap_root(extract_root))
 
         return PreparedSource(
@@ -117,20 +128,43 @@ class IngestionService:
             preserve_source=False,
         )
 
-    def safe_extract_zip(self, archive_path: Path, destination: Path) -> None:
+    def safe_extract_zip(
+        self,
+        archive_path: Path,
+        destination: Path,
+        *,
+        archive_index: int,
+        total_archives: int,
+        progress_callback: Callable[[int, int, int, int, str, int, int, int], None] | None = None,
+    ) -> None:
         with zipfile.ZipFile(archive_path, "r") as archive:
-            for member in archive.infolist():
+            members = archive.infolist()
+            total_members = max(len(members), 1)
+            for member_index, member in enumerate(members, start=1):
                 if not self.is_safe_zip_member(member.filename):
                     continue
                 target = destination / member.filename
                 if member.is_dir():
                     target.mkdir(parents=True, exist_ok=True)
+                    if progress_callback and (member_index == 1 or member_index == total_members or member_index % 250 == 0):
+                        progress_callback(archive_index, total_archives, member_index, total_members, archive_path.name, 0, 0, 1)
                     continue
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(member) as source, target.open("wb") as handle:
                     shutil.copyfileobj(source, handle)
                 member_timestamp = datetime(*member.date_time, tzinfo=UTC).timestamp()
                 os.utime(target, (member_timestamp, member_timestamp))
+                if progress_callback and (member_index == 1 or member_index == total_members or member_index % 250 == 0):
+                    progress_callback(
+                        archive_index,
+                        total_archives,
+                        member_index,
+                        total_members,
+                        archive_path.name,
+                        int(member.file_size or 0),
+                        int(member.file_size or 0),
+                        1,
+                    )
 
     def merge_snap_root(self, source_root: Path, destination_root: Path, archive_label: str) -> None:
         destination_root.mkdir(parents=True, exist_ok=True)
@@ -407,6 +441,7 @@ class IngestionService:
         memory_date_buckets: dict[str, list[IndexedAsset]] = {}
         story_date_buckets: dict[str, list[IndexedAsset]] = {}
         indexed_assets: list[IndexedAsset] = []
+        indexed_by_asset_id: dict[uuid.UUID, IndexedAsset] = {}
 
         for root_path in root_paths:
             media_folders = [
@@ -472,6 +507,22 @@ class IngestionService:
                         "processing": "queued",
                     }
 
+                    existing_indexed = indexed_by_asset_id.get(asset.id)
+                    if existing_indexed is not None:
+                        if taken_at is not None and (
+                            existing_indexed.taken_at is None
+                            or (
+                                self.has_precise_timestamp(taken_at)
+                                and not self.has_precise_timestamp(existing_indexed.taken_at)
+                            )
+                        ):
+                            existing_indexed.taken_at = taken_at
+                        if overlay_file and existing_indexed.overlay_source_path is None:
+                            existing_indexed.overlay_source_path = overlay_file.resolve()
+                        if source_type == AssetSource.CHAT and existing_indexed.snapchat_media_id is None:
+                            existing_indexed.snapchat_media_id = self.extract_chat_media_id(stem_id)
+                        continue
+
                     indexed = IndexedAsset(
                         asset=asset,
                         source_path=main_file.resolve(),
@@ -481,6 +532,7 @@ class IngestionService:
                         snapchat_media_id=self.extract_chat_media_id(stem_id) if source_type == AssetSource.CHAT else None,
                     )
                     indexed_assets.append(indexed)
+                    indexed_by_asset_id[asset.id] = indexed
 
                     if indexed.snapchat_media_id:
                         chat_media_id_map.setdefault(indexed.snapchat_media_id, indexed)
@@ -702,6 +754,7 @@ class IngestionService:
                     raw_payload=payload,
                 )
             )
+            existing_asset_ids.add(asset.asset.id)
             next_position += 1
 
     def parse_stories(self, session: Session, root_paths: list[Path], state: IndexedAssetState) -> None:
@@ -763,6 +816,7 @@ class IngestionService:
                     raw_payload=(payload[position] if payload and position < len(payload) else None),
                 )
             )
+            existing_asset_ids.add(asset.asset.id)
 
     def get_or_create_story_collection(
         self,

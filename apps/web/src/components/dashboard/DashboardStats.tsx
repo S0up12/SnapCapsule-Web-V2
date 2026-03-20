@@ -78,27 +78,9 @@ export default function DashboardStats({ stats, onRefreshDashboard }: DashboardS
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+      <div>
         <section className="rounded-[1.7rem] border border-slate-200/80 bg-white/88 p-4 shadow-[0_20px_45px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.04] dark:shadow-xl dark:shadow-black/20">
           <ImportFlow variant="compact" onRefreshDashboard={onRefreshDashboard} />
-        </section>
-
-        <section className="rounded-[1.7rem] border border-slate-200/80 bg-white/88 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.04] dark:shadow-xl dark:shadow-black/20">
-          <h2 className="text-lg font-semibold text-slate-950 dark:text-white">What You Have</h2>
-          <div className="mt-6 grid gap-4">
-            <div className="rounded-[1.2rem] border border-slate-200/80 bg-slate-50 px-4 py-4 dark:border-white/10 dark:bg-black/15">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Library Size</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                {stats.total_memories.toLocaleString()} memories are ready to browse across the timeline and viewer.
-              </p>
-            </div>
-            <div className="rounded-[1.2rem] border border-slate-200/80 bg-slate-50 px-4 py-4 dark:border-white/10 dark:bg-black/15">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Current Mix</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                {stats.total_photos.toLocaleString()} photos and {stats.total_videos.toLocaleString()} videos are available right now.
-              </p>
-            </div>
-          </div>
         </section>
       </div>
     </section>

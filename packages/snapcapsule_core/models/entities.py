@@ -104,6 +104,14 @@ class IngestionJob(TimestampMixin, Base):
     raw_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
 
+class ProfileSnapshot(TimestampMixin, Base):
+    __tablename__ = "profile_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
 class ChatThread(TimestampMixin, Base):
     __tablename__ = "chat_threads"
     __table_args__ = (
