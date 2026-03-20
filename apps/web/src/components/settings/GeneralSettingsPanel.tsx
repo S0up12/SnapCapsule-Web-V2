@@ -1,3 +1,6 @@
+import { LayoutGrid } from "lucide-react";
+
+import PopoverSelect from "../controls/PopoverSelect";
 import SettingsCard from "./SettingsCard";
 import SettingRow from "./SettingRow";
 import ToggleSwitch from "./ToggleSwitch";
@@ -59,20 +62,14 @@ export default function GeneralSettingsPanel({ settings, isSaving, onUpdate }: G
           title="Default Grid Size"
           description="Choose the thumbnail density you want the memories grid to prefer."
         >
-          <select
+          <PopoverSelect
+            label="Default Grid Size"
+            icon={LayoutGrid}
             value={settings.default_grid_size}
             disabled={isSaving}
-            onChange={(event) =>
-              void onUpdate({ default_grid_size: event.target.value as AppSettings["default_grid_size"] })
-            }
-            className="min-w-[11rem] rounded-[0.95rem] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100"
-          >
-            {GRID_SIZE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => void onUpdate({ default_grid_size: value as AppSettings["default_grid_size"] })}
+            options={[...GRID_SIZE_OPTIONS]}
+          />
         </SettingRow>
       </SettingsCard>
     </div>

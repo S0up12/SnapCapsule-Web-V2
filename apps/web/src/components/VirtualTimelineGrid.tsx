@@ -1,8 +1,9 @@
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
-import { Camera, Clapperboard, LoaderCircle, Star, Tags } from "lucide-react";
+import { LoaderCircle, Star, Tags } from "lucide-react";
 import { memo, type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AssetContextMenu from "./memories/AssetContextMenu";
+import { getMemoryMediaTypeIcon } from "./memories/mediaTypeIcons";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
 import type { AppSettings } from "../hooks/useSettings";
 import { formatTimelineGroup, getOriginalUrl, getOverlayUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
@@ -83,6 +84,7 @@ const TimelineTile = memo(function TimelineTile({
   const thumbnailUrl = getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0, showOverlays);
   const mediaUrl = getOriginalUrl(asset.id, asset.has_overlay ? 1 : 0);
   const overlayUrl = asset.has_overlay ? getOverlayUrl(asset.id, 1) : null;
+  const MediaTypeIcon = getMemoryMediaTypeIcon(asset.media_type);
 
   useEffect(() => {
     setIsPreviewingVideo(false);
@@ -192,11 +194,7 @@ const TimelineTile = memo(function TimelineTile({
         </button>
 
         <div className="pointer-events-none inline-flex items-center justify-center text-white opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-          {asset.media_type === "video" ? (
-            <Clapperboard className="h-4 w-4 text-white/92 drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]" />
-          ) : (
-            <Camera className="h-4 w-4 text-white/92 drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]" />
-          )}
+          <MediaTypeIcon className="h-4 w-4 text-white/92 drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]" />
         </div>
 
         <button

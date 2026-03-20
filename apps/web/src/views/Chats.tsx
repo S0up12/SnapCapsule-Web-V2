@@ -1,6 +1,7 @@
 import { ArrowDownWideNarrow, LoaderCircle, MessageSquareText, Pause, Play, Search, Volume2 } from "lucide-react";
 import { Fragment, startTransition, useEffect, useMemo, useRef, useState } from "react";
 
+import PopoverSelect from "../components/controls/PopoverSelect";
 import Lightbox from "../components/Lightbox";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
 import { getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
@@ -534,6 +535,20 @@ export default function Chats() {
     () => buildSenderToneMap(messagesQuery.data?.items ?? [], selectedConversation?.is_group ?? false),
     [messagesQuery.data?.items, selectedConversation?.is_group],
   );
+  const sortOptions = useMemo(
+    () => [
+      { value: "newest", label: "Newest First" },
+      { value: "oldest", label: "Oldest First" },
+    ],
+    [],
+  );
+  const filterOptions = useMemo(
+    () => [
+      { value: "all", label: "All" },
+      { value: "has_media", label: "Has Media" },
+    ],
+    [],
+  );
 
   return (
     <section className="flex h-full min-h-0 w-full overflow-hidden rounded-[1.9rem] border border-slate-200/80 bg-white/84 shadow-[0_28px_80px_rgba(15,23,42,0.1)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-black/25">
@@ -550,29 +565,23 @@ export default function Chats() {
           </div>
 
           <div className="mt-3 flex gap-2">
-            <label className="inline-flex flex-1 items-center gap-2 rounded-[1rem] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-200">
-              <ArrowDownWideNarrow className="h-4 w-4 text-slate-500" />
-              <select
-                value={sort}
-                onChange={(event) => setSort(event.target.value as "newest" | "oldest")}
-                className="w-full bg-transparent text-slate-900 outline-none [color-scheme:light] dark:text-slate-100 dark:[color-scheme:dark]"
-              >
-                <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="newest">Newest First</option>
-                <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="oldest">Oldest First</option>
-              </select>
-            </label>
+            <PopoverSelect
+              label="Sort conversations"
+              icon={ArrowDownWideNarrow}
+              value={sort}
+              onChange={(value) => setSort(value as "newest" | "oldest")}
+              options={sortOptions}
+              fullWidth
+            />
 
-            <label className="inline-flex flex-1 items-center gap-2 rounded-[1rem] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-200">
-              <MessageSquareText className="h-4 w-4 text-slate-500" />
-              <select
-                value={filter}
-                onChange={(event) => setFilter(event.target.value as "all" | "has_media")}
-                className="w-full bg-transparent text-slate-900 outline-none [color-scheme:light] dark:text-slate-100 dark:[color-scheme:dark]"
-              >
-                <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="all">All</option>
-                <option className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100" value="has_media">Has Media</option>
-              </select>
-            </label>
+            <PopoverSelect
+              label="Filter conversations"
+              icon={MessageSquareText}
+              value={filter}
+              onChange={(value) => setFilter(value as "all" | "has_media")}
+              options={filterOptions}
+              fullWidth
+            />
           </div>
         </div>
 
