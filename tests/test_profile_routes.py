@@ -43,6 +43,13 @@ def test_get_profile_route_returns_persisted_snapshot(db_session_factory, monkey
                     "language": "nl-NL",
                 },
                 "device_history": [],
+                "ranking": {
+                    "snapscore": 101683,
+                    "total_friends": 73,
+                    "accounts_followed": 0,
+                    "spotlight_posts": 114,
+                    "top_spotlight_tags": ["#meme"],
+                },
                 "friends": {
                     "friends_count": 2,
                     "friend_requests_sent_count": 0,
@@ -66,9 +73,16 @@ def test_get_profile_route_returns_persisted_snapshot(db_session_factory, monkey
                     "story_views": 0,
                     "discover_channels_viewed_count": 0,
                     "ads_interacted_count": 0,
+                    "cohort_age": None,
+                    "derived_ad_demographic": None,
                     "breakdown_of_time_spent": [],
                     "interest_categories": [],
                     "content_categories": [],
+                    "web_interactions": [],
+                    "app_interactions": [],
+                    "off_platform_share_count": 0,
+                    "latest_off_platform_share_at": None,
+                    "share_destinations": [],
                 },
                 "security": {
                     "login_count": 0,
@@ -77,13 +91,32 @@ def test_get_profile_route_returns_persisted_snapshot(db_session_factory, monkey
                     "latest_login_status": None,
                     "password_change_count": 0,
                     "connected_permissions_count": 0,
+                    "latest_terms_acceptance_at": None,
                     "two_factor_events": [],
                     "download_reports": [],
+                    "connected_apps": [],
+                    "terms_acceptances": [],
                 },
                 "history": {
                     "display_name_changes": [],
                     "email_changes": [],
                     "mobile_number_changes": [],
+                },
+                "location": {
+                    "latest_region": None,
+                    "latest_city": None,
+                    "latest_country": None,
+                    "frequent_regions": [],
+                    "raw_location_count": 0,
+                    "latest_coordinate_at": None,
+                    "latest_coordinate": None,
+                    "inferred_home": None,
+                    "inferred_work": None,
+                    "declared_home": None,
+                    "school_name": None,
+                    "visited_places": [],
+                    "business_visits": [],
+                    "snap_map_places": [],
                 },
                 "public_profile": {
                     "created_at": None,
@@ -145,6 +178,17 @@ def test_build_profile_snapshot_parses_export_roots(tmp_path):
                     "In-app Language": "nl",
                 },
                 "Engagement": [{"Event": "Application Opens", "Occurrences": 856}],
+                "Demographics": {
+                    "Cohort Age": "AGE_21_TO_24",
+                    "Derived Ad Demographic": "MALE",
+                },
+                "Interactions": {
+                    "Web Interactions": ["kw1c.nl", "marktplaats.nl"],
+                    "App Interactions": ["Spotify"],
+                },
+                "Off-Platform Sharing": [
+                    {"Share Destination": "Camera Roll", "Date": "2026-01-23 00:00:00 UTC", "Media Type": "Video"}
+                ],
                 "Interest Categories": ["Furniture Stores"],
             }
         ),
@@ -184,7 +228,69 @@ def test_build_profile_snapshot_parses_export_roots(tmp_path):
         encoding="utf-8",
     )
     (json_root / "connected_apps.json").write_text(json.dumps({"Permissions": [{"App": "Bitmoji"}]}), encoding="utf-8")
+    (json_root / "ranking.json").write_text(
+        json.dumps(
+            {
+                "Statistics": {
+                    "Snapscore": "101683.0",
+                    "Your Total Friends": "73",
+                    "The Number of Accounts You Follow": "0",
+                },
+                "Spotlight": [114, {"#meme": "6", "#art": "5"}],
+            }
+        ),
+        encoding="utf-8",
+    )
     (json_root / "snap_pro.json").write_text(json.dumps({"Profile": {"Profile Title": "Sammy", "Location": "NL"}}), encoding="utf-8")
+    (json_root / "terms_history.json").write_text(
+        json.dumps(
+            {
+                "Terms of Service and Privacy Policy Acceptance History": [
+                    {
+                        "Version": "Snap Terms of Service & Privacy Policy - November 15, 2021",
+                        "Acceptance Date": "2021-11-18 23:02:25 UTC",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (json_root / "location_history.json").write_text(
+        json.dumps(
+            {
+                "Frequent Locations": [{"Region": "nb"}, {"Region": "li"}],
+                "Latest Location": [{"Region": "li", "City": "Eindhoven", "Country": "NL"}],
+                "Home, School & Work": {
+                    "inferredHome": "lat 51.584, long 5.343",
+                    "inferredWork": "lat 51.685, long 5.291",
+                },
+                "Businesses and places you may have visited": {
+                    "inferredVisitationList": [["The Old Irish", "Tilburg"]],
+                    "businessList": [["2025-03-02", "Foot Locker"]],
+                },
+                "Location History": [
+                    ["2026-02-09 00:41:21 UTC", "51.585, 5.343"],
+                    ["2026-02-09 02:00:07 UTC", "51.586, 5.344"],
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (json_root / "snap_map_places_history.json").write_text(
+        json.dumps(
+            {
+                "Snap Map Places History": [
+                    {
+                        "Date": "2026-02-28 22:50:18 UTC",
+                        "Place": "The Old Irish",
+                        "Place Location": "Tilburg, Provincie Noord-Brabant",
+                        "Share Type": "Snap Send",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
 
     settings = SimpleNamespace(profile_snapshot_path=tmp_path / "profile-snapshot.json")
 
@@ -192,7 +298,19 @@ def test_build_profile_snapshot_parses_export_roots(tmp_path):
 
     assert snapshot is not None
     assert snapshot["account"]["username"] == "sammykastanja"
+    assert snapshot["ranking"]["snapscore"] == 101683
+    assert snapshot["ranking"]["top_spotlight_tags"][0] == "#meme"
     assert snapshot["friends"]["friends_count"] == 1
     assert snapshot["bitmoji"]["email"] == "sammy@example.com"
     assert snapshot["engagement"]["application_opens"] == 856
+    assert snapshot["engagement"]["cohort_age"] == "AGE_21_TO_24"
+    assert snapshot["engagement"]["web_interactions"][0] == "kw1c.nl"
+    assert snapshot["engagement"]["off_platform_share_count"] == 1
+    assert snapshot["security"]["latest_terms_acceptance_at"] == "2021-11-18T23:02:25+00:00"
+    assert snapshot["security"]["connected_apps"][0]["label"] == "Bitmoji"
+    assert snapshot["location"]["latest_region"] == "li"
+    assert snapshot["location"]["raw_location_count"] == 2
+    assert snapshot["location"]["visited_places"][0]["name"] == "The Old Irish"
+    assert snapshot["location"]["business_visits"][0]["name"] == "Foot Locker"
+    assert snapshot["location"]["snap_map_places"][0]["name"] == "The Old Irish"
     assert snapshot["public_profile"]["title"] == "Sammy"

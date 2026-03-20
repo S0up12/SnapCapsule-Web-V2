@@ -63,6 +63,8 @@ body::selection {
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
 }
 
 a {
@@ -83,13 +85,14 @@ textarea {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.55);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   border-radius: 9999px;
-  border: 3px solid rgba(15, 23, 42, 0.55);
+  border: 3px solid transparent;
   background: rgba(148, 163, 184, 0.45);
+  background-clip: padding-box;
 }
 
 code,

@@ -40,6 +40,13 @@ export type ProfileData = {
     device_type: string | null;
     start_time: string | null;
   }>;
+  ranking: {
+    snapscore: number;
+    total_friends: number;
+    accounts_followed: number;
+    spotlight_posts: number;
+    top_spotlight_tags: string[];
+  };
   friends: {
     friends_count: number;
     friend_requests_sent_count: number;
@@ -68,9 +75,16 @@ export type ProfileData = {
     story_views: number;
     discover_channels_viewed_count: number;
     ads_interacted_count: number;
+    cohort_age: string | null;
+    derived_ad_demographic: string | null;
     breakdown_of_time_spent: string[];
     interest_categories: string[];
     content_categories: string[];
+    web_interactions: string[];
+    app_interactions: string[];
+    off_platform_share_count: number;
+    latest_off_platform_share_at: string | null;
+    share_destinations: string[];
   };
   security: {
     login_count: number;
@@ -79,13 +93,47 @@ export type ProfileData = {
     latest_login_status: string | null;
     password_change_count: number;
     connected_permissions_count: number;
+    latest_terms_acceptance_at: string | null;
     two_factor_events: ProfileEventLabel[];
     download_reports: ProfileSecurityDownload[];
+    connected_apps: ProfileSecurityDownload[];
+    terms_acceptances: ProfileEventLabel[];
   };
   history: {
     display_name_changes: ProfileEventValue[];
     email_changes: ProfileEventValue[];
     mobile_number_changes: ProfileEventValue[];
+  };
+  location: {
+    latest_region: string | null;
+    latest_city: string | null;
+    latest_country: string | null;
+    frequent_regions: string[];
+    raw_location_count: number;
+    latest_coordinate_at: string | null;
+    latest_coordinate: string | null;
+    inferred_home: string | null;
+    inferred_work: string | null;
+    declared_home: string | null;
+    school_name: string | null;
+    visited_places: Array<{
+      name: string | null;
+      location: string | null;
+      date: string | null;
+      share_type: string | null;
+    }>;
+    business_visits: Array<{
+      name: string | null;
+      location: string | null;
+      date: string | null;
+      share_type: string | null;
+    }>;
+    snap_map_places: Array<{
+      name: string | null;
+      location: string | null;
+      date: string | null;
+      share_type: string | null;
+    }>;
   };
   public_profile: {
     created_at: string | null;

@@ -18,19 +18,23 @@ PROFILE_JSON_FILES = (
     "bitmoji.json",
     "connected_apps.json",
     "friends.json",
+    "location_history.json",
+    "ranking.json",
+    "snap_map_places_history.json",
     "snap_pro.json",
+    "terms_history.json",
     "user_profile.json",
 )
 
 
 def get_profile_snapshot(session: Session, settings) -> dict[str, Any] | None:
     persisted = load_profile_snapshot(settings)
-    if persisted is not None:
+    if persisted is not None and _snapshot_has_current_profile_shape(persisted):
         return persisted
 
     roots = discover_profile_roots(session, settings)
     if not roots:
-        return None
+        return persisted
 
     snapshot = build_profile_snapshot(settings, roots)
     if snapshot is None:
@@ -66,6 +70,34 @@ def save_profile_snapshot(settings, snapshot: dict[str, Any]) -> None:
     settings.profile_snapshot_path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
 
 
+def _snapshot_has_current_profile_shape(snapshot: dict[str, Any]) -> bool:
+    location = snapshot.get("location")
+    if not isinstance(location, dict):
+        return False
+    engagement = snapshot.get("engagement")
+    security = snapshot.get("security")
+    ranking = snapshot.get("ranking")
+    required_location_keys = {"visited_places", "business_visits", "snap_map_places"}
+    required_engagement_keys = {
+        "cohort_age",
+        "derived_ad_demographic",
+        "web_interactions",
+        "app_interactions",
+        "off_platform_share_count",
+        "latest_off_platform_share_at",
+        "share_destinations",
+    }
+    required_security_keys = {"latest_terms_acceptance_at", "connected_apps", "terms_acceptances"}
+    return (
+        isinstance(engagement, dict)
+        and isinstance(security, dict)
+        and isinstance(ranking, dict)
+        and required_location_keys.issubset(location.keys())
+        and required_engagement_keys.issubset(engagement.keys())
+        and required_security_keys.issubset(security.keys())
+    )
+
+
 def discover_profile_roots(session: Session, settings) -> list[Path]:
     service = IngestionService(settings)
     jobs = session.execute(select(IngestionJob).order_by(IngestionJob.created_at.desc())).scalars()
@@ -96,7 +128,11 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
     bitmoji = payloads.get("bitmoji.json") if isinstance(payloads.get("bitmoji.json"), dict) else {}
     account_history = payloads.get("account_history.json") if isinstance(payloads.get("account_history.json"), dict) else {}
     connected_apps = payloads.get("connected_apps.json") if isinstance(payloads.get("connected_apps.json"), dict) else {}
+    location_history = payloads.get("location_history.json") if isinstance(payloads.get("location_history.json"), dict) else {}
+    ranking = payloads.get("ranking.json") if isinstance(payloads.get("ranking.json"), dict) else {}
+    snap_map_places_history = payloads.get("snap_map_places_history.json") if isinstance(payloads.get("snap_map_places_history.json"), dict) else {}
     snap_pro = payloads.get("snap_pro.json") if isinstance(payloads.get("snap_pro.json"), dict) else {}
+    terms_history = payloads.get("terms_history.json") if isinstance(payloads.get("terms_history.json"), dict) else {}
 
     basic_info = _as_dict(account.get("Basic Information"))
     device_info = _as_dict(account.get("Device Information"))
@@ -110,6 +146,9 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
         for row in engagement_rows
         if isinstance(row, dict)
     }
+    demographics = _as_dict(user_profile.get("Demographics"))
+    interactions = _as_dict(user_profile.get("Interactions"))
+    off_platform_sharing = _sort_events_desc(_as_list(user_profile.get("Off-Platform Sharing")), "Date")
 
     friends_list = _as_list(friends.get("Friends"))
     friends_summary = {
@@ -133,15 +172,45 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
 
     bitmoji_basic = _as_dict(bitmoji.get("Basic Information"))
     bitmoji_analytics = _as_dict(bitmoji.get("Analytics"))
+    ranking_stats = _as_dict(ranking.get("Statistics"))
+    spotlight_rows = _as_list(ranking.get("Spotlight"))
+    spotlight_tag_counts = spotlight_rows[1] if len(spotlight_rows) > 1 and isinstance(spotlight_rows[1], dict) else {}
 
     profile_section = _as_dict(snap_pro.get("Profile"))
+    location_summary = build_location_summary(location_history, snap_map_places_history)
+    connected_permissions = _sort_events_desc(_as_list(connected_apps.get("Permissions")), "Time")
     two_factor_events = _sort_events_desc(_as_list(account_history.get("Two-Factor Authentication")), "Date")
     display_name_changes = _sort_events_desc(_as_list(account_history.get("Display Name Change")), "Date")
     email_changes = _sort_events_desc(_as_list(account_history.get("Email Change")), "Date")
     mobile_number_changes = _sort_events_desc(_as_list(account_history.get("Mobile Number Change")), "Date")
     download_reports = _sort_events_desc(_as_list(account_history.get("Download My Data Reports")), "Date")
+    terms_acceptances = _sort_events_desc(
+        _as_list(terms_history.get("Terms of Service and Privacy Policy Acceptance History")),
+        "Acceptance Date",
+    )
 
     latest_login = login_history[0] if login_history else {}
+    latest_share = off_platform_sharing[0] if off_platform_sharing else {}
+    latest_terms_acceptance = terms_acceptances[0] if terms_acceptances else {}
+    share_destinations = [
+        destination
+        for destination in (
+            _clean_string(row.get("Share Destination"))
+            for row in off_platform_sharing
+            if isinstance(row, dict)
+        )
+        if destination
+    ]
+    unique_share_destinations = list(dict.fromkeys(share_destinations))
+    spotlight_tags = [
+        tag
+        for tag, count in sorted(
+            ((str(tag).strip(), _coerce_int(value)) for tag, value in spotlight_tag_counts.items()),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        if tag and count > 0
+    ]
 
     return {
         "generated_at": datetime.now(UTC).isoformat(),
@@ -174,6 +243,13 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
             for entry in device_history[:6]
             if isinstance(entry, dict)
         ],
+        "ranking": {
+            "snapscore": _coerce_int(ranking_stats.get("Snapscore")),
+            "total_friends": _coerce_int(ranking_stats.get("Your Total Friends")),
+            "accounts_followed": _coerce_int(ranking_stats.get("The Number of Accounts You Follow")),
+            "spotlight_posts": _coerce_int(spotlight_rows[0]) if spotlight_rows else 0,
+            "top_spotlight_tags": spotlight_tags[:8],
+        },
         "friends": friends_summary,
         "bitmoji": {
             "email": _clean_string(bitmoji_basic.get("Email")),
@@ -189,9 +265,16 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
             "story_views": engagement_map.get("Story Views", 0),
             "discover_channels_viewed_count": len(_as_list(user_profile.get("Discover Channels Viewed"))),
             "ads_interacted_count": len(_as_list(user_profile.get("Ads You Interacted With"))),
+            "cohort_age": _clean_string(demographics.get("Cohort Age")),
+            "derived_ad_demographic": _clean_string(demographics.get("Derived Ad Demographic")),
             "breakdown_of_time_spent": _compact_strings(_as_list(user_profile.get("Breakdown of Time Spent on App")), limit=6),
             "interest_categories": _compact_strings(_as_list(user_profile.get("Interest Categories")), limit=8),
             "content_categories": _compact_strings(_as_list(user_profile.get("Content Categories")), limit=8),
+            "web_interactions": _compact_strings(_as_list(interactions.get("Web Interactions")), limit=6),
+            "app_interactions": _compact_strings(_as_list(interactions.get("App Interactions")), limit=6),
+            "off_platform_share_count": len(off_platform_sharing),
+            "latest_off_platform_share_at": _iso_or_none(_parse_datetime(latest_share.get("Date"))),
+            "share_destinations": unique_share_destinations[:6],
         },
         "security": {
             "login_count": len(login_history),
@@ -200,6 +283,7 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
             "latest_login_status": _clean_string(latest_login.get("Status")),
             "password_change_count": len(_as_list(account_history.get("Password Change"))),
             "connected_permissions_count": len(_as_list(connected_apps.get("Permissions"))),
+            "latest_terms_acceptance_at": _iso_or_none(_parse_datetime(latest_terms_acceptance.get("Acceptance Date"))),
             "two_factor_events": [
                 {
                     "date": _iso_or_none(_parse_datetime(event.get("Date"))),
@@ -216,6 +300,23 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
                 }
                 for report in download_reports[:5]
                 if isinstance(report, dict)
+            ],
+            "connected_apps": [
+                {
+                    "date": _iso_or_none(_parse_datetime(permission.get("Time"))),
+                    "label": _clean_string(permission.get("App")),
+                    "value": _clean_string(permission.get("Type")),
+                }
+                for permission in connected_permissions[:5]
+                if isinstance(permission, dict)
+            ],
+            "terms_acceptances": [
+                {
+                    "date": _iso_or_none(_parse_datetime(acceptance.get("Acceptance Date"))),
+                    "label": _clean_string(acceptance.get("Version")),
+                }
+                for acceptance in terms_acceptances[:5]
+                if isinstance(acceptance, dict)
             ],
         },
         "history": {
@@ -244,12 +345,78 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
                 if isinstance(change, dict)
             ],
         },
+        "location": location_summary,
         "public_profile": {
             "created_at": _iso_or_none(_parse_datetime(profile_section.get("Created"))),
             "title": _clean_string(profile_section.get("Profile Title")),
             "location": _clean_string(profile_section.get("Location")),
             "website": _clean_string(profile_section.get("Profile Website")),
         },
+    }
+
+
+def build_location_summary(location_history: dict[str, Any], snap_map_places_history: dict[str, Any]) -> dict[str, Any]:
+    latest_location_rows = [row for row in _as_list(location_history.get("Latest Location")) if isinstance(row, dict)]
+    frequent_location_rows = [row for row in _as_list(location_history.get("Frequent Locations")) if isinstance(row, dict)]
+    raw_location_rows = [row for row in _as_list(location_history.get("Location History")) if isinstance(row, list) and len(row) >= 2]
+    home_school_work = _as_dict(location_history.get("Home, School & Work"))
+    visited_places = _as_dict(location_history.get("Businesses and places you may have visited"))
+    inferred_visits = [
+        {
+            "name": _clean_string(entry[0]) if len(entry) > 0 else None,
+            "location": _clean_string(entry[1]) if len(entry) > 1 else None,
+            "date": None,
+            "share_type": None,
+        }
+        for entry in _as_list(visited_places.get("inferredVisitationList"))
+        if isinstance(entry, list)
+    ]
+    business_visits = [
+        {
+            "name": _clean_string(entry[1]) if len(entry) > 1 else None,
+            "location": None,
+            "date": _clean_string(entry[0]) if len(entry) > 0 else None,
+            "share_type": None,
+        }
+        for entry in _as_list(visited_places.get("businessList"))
+        if isinstance(entry, list)
+    ]
+    snap_map_places = [
+        {
+            "name": _clean_string(entry.get("Place")),
+            "location": _clean_string(entry.get("Place Location")),
+            "date": _clean_string(entry.get("Date")),
+            "share_type": _clean_string(entry.get("Share Type")),
+        }
+        for entry in _as_list(snap_map_places_history.get("Snap Map Places History"))
+        if isinstance(entry, dict)
+    ]
+
+    latest_location = latest_location_rows[0] if latest_location_rows else {}
+    frequent_regions = [
+        region
+        for region in (_clean_string(row.get("Region")) for row in frequent_location_rows)
+        if region
+    ]
+    unique_frequent_regions = list(dict.fromkeys(frequent_regions))
+
+    latest_history_entry = raw_location_rows[-1] if raw_location_rows else None
+
+    return {
+        "latest_region": _clean_string(latest_location.get("Region")),
+        "latest_city": _clean_string(latest_location.get("City")),
+        "latest_country": _clean_string(latest_location.get("Country")),
+        "frequent_regions": unique_frequent_regions[:6],
+        "raw_location_count": len(raw_location_rows),
+        "latest_coordinate_at": _iso_or_none(_parse_datetime(latest_history_entry[0])) if latest_history_entry else None,
+        "latest_coordinate": _clean_string(latest_history_entry[1]) if latest_history_entry else None,
+        "inferred_home": _clean_string(home_school_work.get("inferredHome")),
+        "inferred_work": _clean_string(home_school_work.get("inferredWork")),
+        "declared_home": _clean_string(home_school_work.get("userProvidedHome")),
+        "school_name": _clean_string(home_school_work.get("schoolName")),
+        "visited_places": inferred_visits[:12],
+        "business_visits": business_visits[:12],
+        "snap_map_places": snap_map_places[:12],
     }
 
 
@@ -300,7 +467,10 @@ def _coerce_int(value: Any) -> int:
     try:
         return int(value or 0)
     except (TypeError, ValueError):
-        return 0
+        try:
+            return int(float(value or 0))
+        except (TypeError, ValueError):
+            return 0
 
 
 def _compact_strings(values: list[Any], *, limit: int) -> list[str]:

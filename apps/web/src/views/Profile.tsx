@@ -3,6 +3,7 @@ import {
   ContactRound,
   LoaderCircle,
   LogIn,
+  MapPinned,
   Palette,
   Shield,
   Smartphone,
@@ -38,6 +39,10 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function formatNumber(value: number) {
+  return new Intl.NumberFormat().format(value);
+}
+
 function initialsFromProfile(profile: ProfileData) {
   const source = profile.account.display_name || profile.account.username || "SC";
   return source
@@ -58,15 +63,11 @@ function StatCard({
   icon: typeof UsersRound;
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-slate-200/70 bg-white/80 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/[0.04]">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{label}</p>
-          <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">{value}</p>
-        </div>
-        <span className="flex h-11 w-11 items-center justify-center rounded-[1rem] border border-slate-200/80 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-200">
-          <Icon className="h-5 w-5" />
-        </span>
+    <div className="relative rounded-[1.5rem] border border-slate-200/70 bg-white/80 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/[0.04]">
+      <Icon className="absolute right-4 top-4 h-5 w-5 text-slate-500 dark:text-slate-300" />
+      <div className="pr-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">{value}</p>
       </div>
     </div>
   );
@@ -85,32 +86,50 @@ function InfoList({ items }: { items: Array<{ label: string; value: string | nul
   );
 }
 
-function ChipList({ items }: { items: string[] }) {
+function ChipList({
+  items,
+  scrollAfter = 6,
+}: {
+  items: string[];
+  scrollAfter?: number;
+}) {
   if (items.length === 0) {
     return <p className="text-sm text-slate-500 dark:text-slate-400">No exported data here yet.</p>;
   }
 
+  const shouldScroll = items.length >= scrollAfter;
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((item) => (
-        <span
-          key={item}
-          className="rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-200"
-        >
-          {item}
-        </span>
-      ))}
+    <div className={shouldScroll ? "max-h-24 overflow-y-auto pr-2" : undefined}>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => (
+          <span
+            key={item}
+            className="rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-200"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
-function EventList({ items }: { items: Array<ProfileEventLabel | ProfileEventValue | ProfileSecurityDownload> }) {
+function EventList({
+  items,
+  scrollAfter = 3,
+}: {
+  items: Array<ProfileEventLabel | ProfileEventValue | ProfileSecurityDownload>;
+  scrollAfter?: number;
+}) {
   if (items.length === 0) {
     return <p className="text-sm text-slate-500 dark:text-slate-400">No exported history in this section.</p>;
   }
 
+  const shouldScroll = items.length > scrollAfter;
+
   return (
-    <div className="space-y-3">
+    <div className={shouldScroll ? "max-h-56 space-y-3 overflow-y-auto pr-2" : "space-y-3"}>
       {items.map((item, index) => {
         const label = "label" in item ? item.label : item.value;
         const secondary = "value" in item && "label" in item ? item.value : null;
@@ -132,6 +151,40 @@ function EventList({ items }: { items: Array<ProfileEventLabel | ProfileEventVal
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function PlaceList({
+  items,
+  emptyMessage,
+}: {
+  items: Array<{ name: string | null; location: string | null; date: string | null; share_type: string | null }>;
+  emptyMessage: string;
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm text-slate-500 dark:text-slate-400">{emptyMessage}</p>;
+  }
+
+  return (
+    <div className="max-h-72 space-y-3 overflow-y-auto pr-2">
+      {items.map((item, index) => (
+        <div
+          key={`${item.name ?? "unknown"}-${item.location ?? "place"}-${item.date ?? index}`}
+          className="rounded-[1.2rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.name || "Unknown place"}</p>
+              {item.location ? <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{item.location}</p> : null}
+            </div>
+            <div className="text-right text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+              {item.date ? <p>{item.date}</p> : null}
+              {item.share_type ? <p className="mt-1 normal-case tracking-normal">{item.share_type}</p> : null}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -193,16 +246,16 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Friends" value={profile.friends.friends_count} icon={UsersRound} />
-            <StatCard label="Logins" value={profile.security.login_count} icon={LogIn} />
-            <StatCard label="Devices" value={profile.device_history.length || 1} icon={Smartphone} />
-            <StatCard label="Bitmoji Opens" value={profile.bitmoji.app_open_count} icon={Palette} />
-          </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Friends" value={profile.friends.friends_count} icon={UsersRound} />
+          <StatCard label="Snapscore" value={formatNumber(profile.ranking.snapscore)} icon={BadgeCheck} />
+          <StatCard label="Devices" value={profile.device_history.length || 1} icon={Smartphone} />
+          <StatCard label="Location Points" value={profile.location.raw_location_count} icon={MapPinned} />
+        </div>
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+      <div className="grid gap-6 xl:grid-cols-2">
         <div className="space-y-6">
           <SettingsCard title="Account">
             <InfoList
@@ -257,69 +310,117 @@ export default function Profile() {
             </div>
           </SettingsCard>
 
+          <SettingsCard title="Location">
+            <InfoList
+              items={[
+                { label: "Latest Region", value: profile.location.latest_region },
+                { label: "Latest City", value: profile.location.latest_city },
+                { label: "Latest Country", value: profile.location.latest_country },
+                { label: "Latest Coordinate Time", value: formatDateTime(profile.location.latest_coordinate_at) },
+                { label: "Latest Coordinate", value: profile.location.latest_coordinate },
+                { label: "Inferred Home", value: profile.location.inferred_home },
+                { label: "Inferred Work", value: profile.location.inferred_work },
+                { label: "Declared Home", value: profile.location.declared_home },
+              ]}
+            />
+            <div className="mt-5 grid gap-5 xl:grid-cols-2">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Frequent Regions</h3>
+                <div className="mt-3">
+                  <ChipList items={profile.location.frequent_regions} />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Location Summary</h3>
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-[1.2rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">History Points</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{profile.location.raw_location_count}</p>
+                  </div>
+                  <div className="rounded-[1.2rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">School</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{profile.location.school_name || "Not available"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-5 xl:grid-cols-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Visited Places</h3>
+                <div className="mt-3">
+                  <PlaceList items={profile.location.visited_places} emptyMessage="No inferred visited places in this export." />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Snap Map Places</h3>
+                <div className="mt-3">
+                  <PlaceList items={profile.location.snap_map_places} emptyMessage="No Snap Map places history in this export." />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Business Visits</h3>
+                <div className="mt-3">
+                  <PlaceList items={profile.location.business_visits} emptyMessage="No business visit history in this export." />
+                </div>
+              </div>
+            </div>
+          </SettingsCard>
+
           <SettingsCard title="Interests And Engagement">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard label="App Opens" value={profile.engagement.application_opens} icon={LogIn} />
               <StatCard label="Story Views" value={profile.engagement.story_views} icon={BadgeCheck} />
               <StatCard label="Discover" value={profile.engagement.discover_channels_viewed_count} icon={ContactRound} />
-              <StatCard label="Ad Touches" value={profile.engagement.ads_interacted_count} icon={Shield} />
+              <StatCard label="Shares" value={profile.engagement.off_platform_share_count} icon={Shield} />
+            </div>
+            <div className="mt-5">
+              <InfoList
+                items={[
+                  { label: "Age Cohort", value: profile.engagement.cohort_age },
+                  { label: "Ad Demographic", value: profile.engagement.derived_ad_demographic },
+                  { label: "Latest Share", value: formatDateTime(profile.engagement.latest_off_platform_share_at) },
+                  { label: "Ad Touches", value: String(profile.engagement.ads_interacted_count) },
+                ]}
+              />
             </div>
             <div className="mt-5 grid gap-5 lg:grid-cols-3">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Time Spent</h3>
                 <div className="mt-3">
-                  <ChipList items={profile.engagement.breakdown_of_time_spent} />
+                  <ChipList items={profile.engagement.breakdown_of_time_spent} scrollAfter={4} />
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Interest Categories</h3>
                 <div className="mt-3">
-                  <ChipList items={profile.engagement.interest_categories} />
+                  <ChipList items={profile.engagement.interest_categories} scrollAfter={4} />
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Content Categories</h3>
                 <div className="mt-3">
-                  <ChipList items={profile.engagement.content_categories} />
+                  <ChipList items={profile.engagement.content_categories} scrollAfter={4} />
                 </div>
               </div>
             </div>
-          </SettingsCard>
-        </div>
-
-        <div className="space-y-6">
-          <SettingsCard title="Current Device">
-            <InfoList
-              items={[
-                { label: "Make", value: profile.current_device.make },
-                { label: "Model", value: profile.current_device.model_name },
-                { label: "OS", value: profile.current_device.os_type },
-                { label: "Language", value: profile.current_device.language },
-              ]}
-            />
-          </SettingsCard>
-
-          <SettingsCard title="Security">
-            <InfoList
-              items={[
-                { label: "Latest Login", value: formatDateTime(profile.security.latest_login_at) },
-                { label: "Latest Login Country", value: profile.security.latest_login_country },
-                { label: "Latest Login Status", value: profile.security.latest_login_status },
-                { label: "Password Changes", value: String(profile.security.password_change_count) },
-                { label: "Connected Permissions", value: String(profile.security.connected_permissions_count) },
-                { label: "Snapshot Generated", value: formatDateTime(profile.generated_at) },
-              ]}
-            />
-            <div className="mt-5">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Two-Factor Events</h3>
-              <div className="mt-3">
-                <EventList items={profile.security.two_factor_events} />
+            <div className="mt-5 grid gap-5 lg:grid-cols-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Web Interactions</h3>
+                <div className="mt-3">
+                  <ChipList items={profile.engagement.web_interactions} scrollAfter={4} />
+                </div>
               </div>
-            </div>
-            <div className="mt-5">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Download Reports</h3>
-              <div className="mt-3">
-                <EventList items={profile.security.download_reports} />
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">App Interactions</h3>
+                <div className="mt-3">
+                  <ChipList items={profile.engagement.app_interactions} scrollAfter={4} />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Share Destinations</h3>
+                <div className="mt-3">
+                  <ChipList items={profile.engagement.share_destinations} scrollAfter={4} />
+                </div>
               </div>
             </div>
           </SettingsCard>
@@ -336,6 +437,72 @@ export default function Profile() {
                 { label: "Shares", value: String(profile.bitmoji.share_count) },
               ]}
             />
+          </SettingsCard>
+        </div>
+
+        <div className="space-y-6">
+          <SettingsCard title="Current Device">
+            <InfoList
+              items={[
+                { label: "Make", value: profile.current_device.make },
+                { label: "Model", value: profile.current_device.model_name },
+                { label: "OS", value: profile.current_device.os_type },
+                { label: "Language", value: profile.current_device.language },
+              ]}
+            />
+          </SettingsCard>
+
+          <SettingsCard title="Ranking">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard label="Snapscore" value={formatNumber(profile.ranking.snapscore)} icon={BadgeCheck} />
+              <StatCard label="Friends" value={profile.ranking.total_friends} icon={UsersRound} />
+              <StatCard label="Following" value={profile.ranking.accounts_followed} icon={ContactRound} />
+              <StatCard label="Spotlight" value={profile.ranking.spotlight_posts} icon={Palette} />
+            </div>
+            <div className="mt-5">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Top Spotlight Tags</h3>
+              <div className="mt-3">
+                <ChipList items={profile.ranking.top_spotlight_tags} />
+              </div>
+            </div>
+          </SettingsCard>
+
+          <SettingsCard title="Security">
+            <InfoList
+              items={[
+                { label: "Latest Login", value: formatDateTime(profile.security.latest_login_at) },
+                { label: "Latest Login Country", value: profile.security.latest_login_country },
+                { label: "Latest Login Status", value: profile.security.latest_login_status },
+                { label: "Latest Terms Acceptance", value: formatDateTime(profile.security.latest_terms_acceptance_at) },
+                { label: "Password Changes", value: String(profile.security.password_change_count) },
+                { label: "Connected Permissions", value: String(profile.security.connected_permissions_count) },
+                { label: "Snapshot Generated", value: formatDateTime(profile.generated_at) },
+              ]}
+            />
+            <div className="mt-5">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Two-Factor Events</h3>
+              <div className="mt-3">
+                <EventList items={profile.security.two_factor_events} />
+              </div>
+            </div>
+            <div className="mt-5">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Connected Apps</h3>
+              <div className="mt-3">
+                <EventList items={profile.security.connected_apps} />
+              </div>
+            </div>
+            <div className="mt-5">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Terms Acceptance</h3>
+              <div className="mt-3">
+                <EventList items={profile.security.terms_acceptances} />
+              </div>
+            </div>
+            <div className="mt-5">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Download Reports</h3>
+              <div className="mt-3">
+                <EventList items={profile.security.download_reports} />
+              </div>
+            </div>
           </SettingsCard>
 
           <SettingsCard title="Account History">

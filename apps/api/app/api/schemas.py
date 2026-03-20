@@ -166,6 +166,14 @@ class ProfileDeviceHistoryEntry(BaseModel):
     start_time: datetime | None = Field(default=None, description="Timestamp when the device started being used.")
 
 
+class ProfileRankingSummary(BaseModel):
+    snapscore: int = Field(..., description="Snapscore exported in ranking statistics.")
+    total_friends: int = Field(..., description="Total friends count reported in ranking statistics.")
+    accounts_followed: int = Field(..., description="Number of followed accounts reported in ranking statistics.")
+    spotlight_posts: int = Field(..., description="Number of Spotlight posts or interactions reported in ranking data.")
+    top_spotlight_tags: list[str] = Field(..., description="Most-used Spotlight tags inferred from ranking data.")
+
+
 class ProfileFriendSummaryEntry(BaseModel):
     username: str | None = Field(default=None, description="Friend username.")
     display_name: str | None = Field(default=None, description="Friend display name.")
@@ -198,9 +206,16 @@ class ProfileEngagementSummary(BaseModel):
     story_views: int = Field(..., description="Story views recorded in the export.")
     discover_channels_viewed_count: int = Field(..., description="Distinct viewed Discover channel rows.")
     ads_interacted_count: int = Field(..., description="Ads interacted with according to the export.")
+    cohort_age: str | None = Field(default=None, description="Snapchat demographic age cohort if present.")
+    derived_ad_demographic: str | None = Field(default=None, description="Derived ad demographic label if present.")
     breakdown_of_time_spent: list[str] = Field(..., description="Compact breakdown of time spent on app sections.")
     interest_categories: list[str] = Field(..., description="Interest categories inferred by Snapchat.")
     content_categories: list[str] = Field(..., description="Content categories inferred by Snapchat.")
+    web_interactions: list[str] = Field(..., description="Recent web interaction domains exported by Snapchat.")
+    app_interactions: list[str] = Field(..., description="Recent app interaction labels exported by Snapchat.")
+    off_platform_share_count: int = Field(..., description="Number of off-platform sharing rows in the export.")
+    latest_off_platform_share_at: datetime | None = Field(default=None, description="Most recent off-platform share timestamp.")
+    share_destinations: list[str] = Field(..., description="Distinct share destinations used off-platform.")
 
 
 class ProfileEventLabel(BaseModel):
@@ -226,14 +241,34 @@ class ProfileSecuritySummary(BaseModel):
     latest_login_status: str | None = Field(default=None, description="Status of the most recent login event.")
     password_change_count: int = Field(..., description="Number of password change entries in account history.")
     connected_permissions_count: int = Field(..., description="Number of connected app permission entries.")
+    latest_terms_acceptance_at: datetime | None = Field(default=None, description="Most recent primary terms acceptance timestamp.")
     two_factor_events: list[ProfileEventLabel] = Field(..., description="Recent two-factor authentication events.")
     download_reports: list[ProfileSecurityDownload] = Field(..., description="Recent download report events.")
+    connected_apps: list[ProfileSecurityDownload] = Field(..., description="Recent connected app permission events.")
+    terms_acceptances: list[ProfileEventLabel] = Field(..., description="Recent primary terms acceptance versions.")
 
 
 class ProfileHistorySummary(BaseModel):
     display_name_changes: list[ProfileEventValue] = Field(..., description="Recent display name changes.")
     email_changes: list[ProfileEventValue] = Field(..., description="Recent email changes.")
     mobile_number_changes: list[ProfileEventValue] = Field(..., description="Recent mobile number changes.")
+
+
+class ProfileLocationSummary(BaseModel):
+    latest_region: str | None = Field(default=None, description="Most recent region recorded in Snapchat location data.")
+    latest_city: str | None = Field(default=None, description="Most recent city recorded in Snapchat location data.")
+    latest_country: str | None = Field(default=None, description="Most recent country recorded in Snapchat location data.")
+    frequent_regions: list[str] = Field(..., description="Recent frequent regions inferred by Snapchat.")
+    raw_location_count: int = Field(..., description="Number of raw location history coordinate rows in the export.")
+    latest_coordinate_at: datetime | None = Field(default=None, description="Timestamp of the latest raw coordinate point.")
+    latest_coordinate: str | None = Field(default=None, description="Latest raw coordinate pair string from the export.")
+    inferred_home: str | None = Field(default=None, description="Inferred home location string from Snapchat.")
+    inferred_work: str | None = Field(default=None, description="Inferred work location string from Snapchat.")
+    declared_home: str | None = Field(default=None, description="User-provided home location string if present.")
+    school_name: str | None = Field(default=None, description="School name from location history if present.")
+    visited_places: list[dict[str, str | None]] = Field(..., description="Inferred places Snapchat thinks you may have visited.")
+    business_visits: list[dict[str, str | None]] = Field(..., description="Business visits derived from Snapchat location history.")
+    snap_map_places: list[dict[str, str | None]] = Field(..., description="Snap Map places history rows.")
 
 
 class ProfilePublicProfileSummary(BaseModel):
@@ -248,11 +283,13 @@ class ProfileResponse(BaseModel):
     account: ProfileAccountSummary
     current_device: ProfileCurrentDevice
     device_history: list[ProfileDeviceHistoryEntry] = Field(..., description="Recent device history preview.")
+    ranking: ProfileRankingSummary
     friends: ProfileFriendsSummary
     bitmoji: ProfileBitmojiSummary
     engagement: ProfileEngagementSummary
     security: ProfileSecuritySummary
     history: ProfileHistorySummary
+    location: ProfileLocationSummary
     public_profile: ProfilePublicProfileSummary
 
 
