@@ -12,3 +12,4 @@ apps/web/dist/
 *.egg-info/
 data/
 local/
+PROJECT_TODO.local.md
