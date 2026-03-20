@@ -38,7 +38,7 @@ def get_profile_snapshot(session: Session, settings) -> dict[str, Any] | None:
 
     snapshot = build_profile_snapshot(settings, roots)
     if snapshot is None:
-        return None
+        return persisted
 
     save_profile_snapshot(settings, snapshot)
     return snapshot

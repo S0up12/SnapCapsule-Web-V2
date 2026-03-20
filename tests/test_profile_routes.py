@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from apps.api.app.api.routes import profile as profile_routes
+from snapcapsule_core.services import profile_queries
 from snapcapsule_core.services.profile_queries import build_profile_snapshot
 
 
@@ -314,3 +315,50 @@ def test_build_profile_snapshot_parses_export_roots(tmp_path):
     assert snapshot["location"]["business_visits"][0]["name"] == "Foot Locker"
     assert snapshot["location"]["snap_map_places"][0]["name"] == "The Old Irish"
     assert snapshot["public_profile"]["title"] == "Sammy"
+
+
+def test_get_profile_snapshot_falls_back_to_persisted_snapshot_when_rebuild_fails(
+    db_session_factory,
+    monkeypatch,
+    tmp_path,
+):
+    SessionLocal, _ = db_session_factory
+    snapshot_path = tmp_path / "profile-snapshot.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-03-19T10:00:00+00:00",
+                "account": {"username": "sammykastanja"},
+                "location": {
+                    "visited_places": [],
+                    "business_visits": [],
+                    "snap_map_places": [],
+                },
+                "engagement": {
+                    "cohort_age": None,
+                    "derived_ad_demographic": None,
+                    "web_interactions": [],
+                    "app_interactions": [],
+                    "off_platform_share_count": 0,
+                    "latest_off_platform_share_at": None,
+                    "share_destinations": [],
+                },
+                "security": {
+                    "latest_terms_acceptance_at": None,
+                    "connected_apps": [],
+                    "terms_acceptances": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    settings = SimpleNamespace(profile_snapshot_path=snapshot_path)
+
+    with SessionLocal() as session:
+        monkeypatch.setattr(profile_queries, "discover_profile_roots", lambda _session, _settings: [tmp_path / "export"])
+        monkeypatch.setattr(profile_queries, "build_profile_snapshot", lambda _settings, _roots: None)
+
+        snapshot = profile_queries.get_profile_snapshot(session, settings)
+
+    assert snapshot is not None
+    assert snapshot["account"]["username"] == "sammykastanja"

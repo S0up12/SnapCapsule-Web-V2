@@ -22,6 +22,8 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
 }
 
 VALID_GRID_SIZES = {"small", "medium", "large"}
+TRUE_VALUES = {"1", "true", "yes", "on"}
+FALSE_VALUES = {"0", "false", "no", "off", ""}
 
 
 @dataclass(slots=True)
@@ -83,15 +85,31 @@ class SettingsStore:
             grid_size = "medium"
 
         return StoredPreferences(
-            dark_mode=bool(payload.get("dark_mode", DEFAULT_PREFERENCES["dark_mode"])),
-            autoplay_videos_in_grid=bool(
+            dark_mode=_coerce_bool(payload.get("dark_mode", DEFAULT_PREFERENCES["dark_mode"])),
+            autoplay_videos_in_grid=_coerce_bool(
                 payload.get("autoplay_videos_in_grid", DEFAULT_PREFERENCES["autoplay_videos_in_grid"])
             ),
-            show_memory_overlays=bool(
+            show_memory_overlays=_coerce_bool(
                 payload.get("show_memory_overlays", DEFAULT_PREFERENCES["show_memory_overlays"])
             ),
             default_grid_size=grid_size,
-            enable_debug_logging=bool(
+            enable_debug_logging=_coerce_bool(
                 payload.get("enable_debug_logging", DEFAULT_PREFERENCES["enable_debug_logging"])
             ),
         )
+
+
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in TRUE_VALUES:
+            return True
+        if normalized in FALSE_VALUES:
+            return False
+    return bool(value)
