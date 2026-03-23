@@ -102,13 +102,13 @@ export default function Settings() {
                   type="button"
                   onClick={() => setActiveCategory(item.id)}
                   className={[
-                    "flex w-full items-start gap-3 rounded-[1.2rem] border px-3 py-3 text-left transition",
+                    "flex w-full items-center gap-3 rounded-[1.2rem] border px-3 py-3 text-left transition",
                     isActive
                       ? "border-sky-300/20 bg-sky-400/[0.12] text-slate-950 shadow-[0_18px_36px_rgba(8,47,73,0.14)] dark:text-white"
                       : "border-transparent bg-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50/90 dark:text-slate-400 dark:hover:border-white/10 dark:hover:bg-white/[0.045]",
                   ].join(" ")}
                 >
-                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[1rem] border border-slate-200/80 bg-white text-slate-800 shadow-sm dark:border-white/10 dark:bg-slate-950/55 dark:text-slate-200">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[1rem] border border-slate-200/80 bg-white text-slate-800 shadow-sm dark:border-white/10 dark:bg-slate-950/55 dark:text-slate-200">
                     <Icon className="h-4.5 w-4.5" />
                   </span>
                   <span className="min-w-0">
