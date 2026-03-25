@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     celery_result_backend: str | None = None
     raw_media_dir: str = "/srv/snapcapsule/raw"
     thumbnail_dir: str = "/srv/snapcapsule/thumbnails"
-    ingest_root_dir: str = "/srv/snapcapsule/ingest"
+    library_archives_dir: str | None = None
+    ingest_cache_dir: str | None = None
+    ingest_root_dir: str | None = None
     allowed_origins: str = "http://localhost:3000,http://localhost:5173"
 
     model_config = SettingsConfigDict(
@@ -36,29 +38,39 @@ class Settings(BaseSettings):
         return self.celery_result_backend or self.redis_url
 
     @property
+    def ingest_cache_root_dir(self) -> Path:
+        if self.ingest_cache_dir:
+            return Path(self.ingest_cache_dir)
+        if self.ingest_root_dir:
+            return Path(self.ingest_root_dir)
+        return Path("/srv/snapcapsule/cache")
+
+    @property
     def ingest_upload_dir(self) -> Path:
-        return Path(self.ingest_root_dir) / "uploads"
+        return self.ingest_cache_root_dir / "uploads"
 
     @property
     def ingest_workspace_dir(self) -> Path:
-        return Path(self.ingest_root_dir) / "workspaces"
+        return self.ingest_cache_root_dir / "workspaces"
 
     @property
     def ingest_archive_dir(self) -> Path:
-        return Path(self.ingest_root_dir) / "archives"
+        if self.library_archives_dir:
+            return Path(self.library_archives_dir)
+        return self.ingest_cache_root_dir / "archives"
 
     @property
     def preferences_file_path(self) -> Path:
-        return Path(self.ingest_root_dir) / "user-preferences.json"
+        return self.ingest_cache_root_dir / "user-preferences.json"
 
     @property
     def profile_snapshot_path(self) -> Path:
-        return Path(self.ingest_root_dir) / "profile-snapshot.json"
+        return self.ingest_cache_root_dir / "profile-snapshot.json"
 
     def ensure_storage_dirs(self) -> None:
         Path(self.raw_media_dir).mkdir(parents=True, exist_ok=True)
         Path(self.thumbnail_dir).mkdir(parents=True, exist_ok=True)
-        Path(self.ingest_root_dir).mkdir(parents=True, exist_ok=True)
+        self.ingest_cache_root_dir.mkdir(parents=True, exist_ok=True)
         self.ingest_upload_dir.mkdir(parents=True, exist_ok=True)
         self.ingest_workspace_dir.mkdir(parents=True, exist_ok=True)
         self.ingest_archive_dir.mkdir(parents=True, exist_ok=True)

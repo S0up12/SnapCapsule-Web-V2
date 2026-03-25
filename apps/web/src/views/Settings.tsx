@@ -131,6 +131,7 @@ export default function Settings() {
 
           {activeCategory === "storage" ? (
             <DataStoragePanel
+              storage={settings.storage}
               isRescanning={rescanAction.isPending}
               isResetting={resetAction.isPending}
               onRescan={handleRescan}

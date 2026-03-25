@@ -14,7 +14,7 @@ services:
       retries: 5
     restart: unless-stopped
     volumes:
-      - ${HOST_POSTGRES_DATA_DIR:-./data/postgres}:/var/lib/postgresql/data
+      - ${DB_DATA_DIR:-./data/postgres}:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
@@ -47,19 +47,21 @@ services:
     environment:
       SNAPCAPSULE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-snapcapsule}:${POSTGRES_PASSWORD:-snapcapsule}@db:5432/${POSTGRES_DB:-snapcapsule}
       SNAPCAPSULE_REDIS_URL: redis://redis:6379/0
-      SNAPCAPSULE_ALLOWED_ORIGINS: ${SNAPCAPSULE_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      SNAPCAPSULE_ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
       SNAPCAPSULE_RAW_MEDIA_DIR: /srv/snapcapsule/raw
       SNAPCAPSULE_THUMBNAIL_DIR: /srv/snapcapsule/thumbnails
-      SNAPCAPSULE_INGEST_ROOT_DIR: /srv/snapcapsule/ingest
+      SNAPCAPSULE_LIBRARY_ARCHIVES_DIR: /srv/snapcapsule/library
+      SNAPCAPSULE_INGEST_CACHE_DIR: /srv/snapcapsule/cache
       WATCHFILES_FORCE_POLLING: "true"
     ports:
-      - ${SNAPCAPSULE_API_PORT:-8000}:8000
+      - ${API_PORT:-8000}:8000
     restart: unless-stopped
     volumes:
       - .:/workspace
-      - ${HOST_RAW_MEDIA_DIR:-./data/raw}:/srv/snapcapsule/raw
-      - ${HOST_THUMBNAIL_DIR:-./data/thumbnails}:/srv/snapcapsule/thumbnails
-      - ${HOST_INGEST_DIR:-./data/ingest}:/srv/snapcapsule/ingest
+      - ${RAW_MEDIA_DIR:-./data/raw}:/srv/snapcapsule/raw
+      - ${THUMBNAILS_DIR:-./data/thumbnails}:/srv/snapcapsule/thumbnails
+      - ${LIBRARY_ARCHIVES_DIR:-./data/library}:/srv/snapcapsule/library
+      - ${INGEST_CACHE_DIR:-./data/cache}:/srv/snapcapsule/cache
 
   worker:
     build:
@@ -81,14 +83,16 @@ services:
       SNAPCAPSULE_REDIS_URL: redis://redis:6379/0
       SNAPCAPSULE_RAW_MEDIA_DIR: /srv/snapcapsule/raw
       SNAPCAPSULE_THUMBNAIL_DIR: /srv/snapcapsule/thumbnails
-      SNAPCAPSULE_INGEST_ROOT_DIR: /srv/snapcapsule/ingest
+      SNAPCAPSULE_LIBRARY_ARCHIVES_DIR: /srv/snapcapsule/library
+      SNAPCAPSULE_INGEST_CACHE_DIR: /srv/snapcapsule/cache
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
     restart: unless-stopped
     volumes:
       - .:/workspace
-      - ${HOST_RAW_MEDIA_DIR:-./data/raw}:/srv/snapcapsule/raw
-      - ${HOST_THUMBNAIL_DIR:-./data/thumbnails}:/srv/snapcapsule/thumbnails
-      - ${HOST_INGEST_DIR:-./data/ingest}:/srv/snapcapsule/ingest
+      - ${RAW_MEDIA_DIR:-./data/raw}:/srv/snapcapsule/raw
+      - ${THUMBNAILS_DIR:-./data/thumbnails}:/srv/snapcapsule/thumbnails
+      - ${LIBRARY_ARCHIVES_DIR:-./data/library}:/srv/snapcapsule/library
+      - ${INGEST_CACHE_DIR:-./data/cache}:/srv/snapcapsule/cache
 
   frontend:
     build:
@@ -102,7 +106,7 @@ services:
       VITE_API_PROXY_TARGET: http://backend:8000
       CHOKIDAR_USEPOLLING: "true"
     ports:
-      - ${SNAPCAPSULE_WEB_PORT:-3000}:5173
+      - ${WEB_PORT:-3000}:5173
     restart: unless-stopped
     volumes:
       - ./apps/web:/app

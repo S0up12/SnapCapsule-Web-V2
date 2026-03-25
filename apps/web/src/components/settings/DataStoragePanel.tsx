@@ -5,6 +5,12 @@ import SettingRow from "./SettingRow";
 import type { SystemActionResponse } from "../../hooks/useSystemStatus";
 
 type DataStoragePanelProps = {
+  storage: {
+    raw_media_dir: string;
+    thumbnail_dir: string;
+    library_archives_dir: string;
+    ingest_cache_dir: string;
+  };
   isRescanning: boolean;
   isResetting: boolean;
   onRescan: () => Promise<void>;
@@ -13,6 +19,7 @@ type DataStoragePanelProps = {
 };
 
 export default function DataStoragePanel({
+  storage,
   isRescanning,
   isResetting,
   onRescan,
@@ -22,9 +29,28 @@ export default function DataStoragePanel({
   return (
     <div className="grid gap-6">
       <SettingsCard title="Library">
+        <div className="mb-5 grid gap-3 md:grid-cols-2">
+          <div className="rounded-[1rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Raw Media</p>
+            <p className="mt-2 break-all text-sm text-slate-900 dark:text-slate-100">{storage.raw_media_dir}</p>
+          </div>
+          <div className="rounded-[1rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Thumbnails</p>
+            <p className="mt-2 break-all text-sm text-slate-900 dark:text-slate-100">{storage.thumbnail_dir}</p>
+          </div>
+          <div className="rounded-[1rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Library Archives</p>
+            <p className="mt-2 break-all text-sm text-slate-900 dark:text-slate-100">{storage.library_archives_dir}</p>
+          </div>
+          <div className="rounded-[1rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Ingest Cache</p>
+            <p className="mt-2 break-all text-sm text-slate-900 dark:text-slate-100">{storage.ingest_cache_dir}</p>
+          </div>
+        </div>
+
         <SettingRow
           title="Scan for new archive folders"
-          description="Look for new archive folders that were added to the library location outside the upload flow."
+          description="Look for new archive folders that were added to the mounted library archives path outside the upload flow."
         >
           <button
             type="button"
