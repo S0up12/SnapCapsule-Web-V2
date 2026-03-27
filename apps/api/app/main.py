@@ -108,7 +108,5 @@ def root() -> RootResponse:
         "storage": {
             "raw_media_dir": settings.raw_media_dir,
             "thumbnail_dir": settings.thumbnail_dir,
-            "library_archives_dir": str(settings.ingest_archive_dir),
-            "ingest_cache_dir": str(settings.ingest_cache_root_dir),
         },
     }

@@ -56,28 +56,19 @@ pyproject.toml
 
 ## Storage Model
 
-The compose stack maps clear, server-friendly host paths into the Python services:
+The compose stack maps permanent host storage into the Python services:
 
-- `DB_DATA_DIR` for PostgreSQL persistence
-- `RAW_MEDIA_DIR` for original Snapchat media files
-- `THUMBNAILS_DIR` for generated thumbnail files
-- `LIBRARY_ARCHIVES_DIR` for mounted archive folders that the rescan action should scan
-- `INGEST_CACHE_DIR` for uploaded ZIP bundles, extraction workspaces, and app cache files
-
-Default local paths are:
-
-- `./data/postgres`
-- `./data/raw`
-- `./data/thumbnails`
-- `./data/library`
-- `./data/cache`
+- `raw` for original Snapchat media files
+- `thumbnails` for web-ready derivatives
+- `ingest` for upload archives and extraction workspaces
+- `postgres` for database persistence
 
 That keeps media serving simple and fast: the API reads metadata from Postgres, while both the API and worker can access the same files without copying blobs through Redis or the database.
 
 ## Quick Start
 
 1. Copy `.env.example` to `.env`.
-2. Adjust the storage and port variables if needed.
+2. Adjust the host storage paths if needed.
 3. Start the full development stack:
 
 ```bash
@@ -92,23 +83,6 @@ http://localhost:8000/health
 ```
 
 The frontend runs through Vite on port `3000`, the API runs on port `8000`, and both backend and frontend reload automatically when you save local files.
-
-## Container Variables
-
-These are the main variables you would typically set in Portainer or another container UI:
-
-- `DB_DATA_DIR`
-- `RAW_MEDIA_DIR`
-- `THUMBNAILS_DIR`
-- `LIBRARY_ARCHIVES_DIR`
-- `INGEST_CACHE_DIR`
-- `API_PORT`
-- `WEB_PORT`
-- `ALLOWED_ORIGINS`
-- `WORKER_CONCURRENCY`
-- `POSTGRES_DB`
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
 
 ## Tests
 

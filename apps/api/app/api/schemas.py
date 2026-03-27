@@ -28,16 +28,6 @@ class StorageDirectories(BaseModel):
         description="Mounted directory used to store web-optimized thumbnail files.",
         examples=["/srv/snapcapsule/thumbnails"],
     )
-    library_archives_dir: str = Field(
-        ...,
-        description="Mounted directory scanned for server-side archive folders during library rescans.",
-        examples=["/srv/snapcapsule/library"],
-    )
-    ingest_cache_dir: str = Field(
-        ...,
-        description="Mounted directory used for uploaded ZIP bundles, extraction workspaces, and app cache files.",
-        examples=["/srv/snapcapsule/cache"],
-    )
 
 
 class RootResponse(BaseModel):
@@ -477,8 +467,6 @@ class StoryCollectionsResponse(BaseModel):
 class SettingsStorageInfo(BaseModel):
     raw_media_dir: str = Field(..., description="Mounted directory that stores original Snapchat media.")
     thumbnail_dir: str = Field(..., description="Mounted directory that stores generated thumbnail images.")
-    library_archives_dir: str = Field(..., description="Mounted directory scanned for archive folder rescans.")
-    ingest_cache_dir: str = Field(..., description="Mounted directory used for ZIP upload cache and extraction workspaces.")
 
 
 class AppSettingsResponse(BaseModel):
@@ -493,8 +481,6 @@ class AppSettingsResponse(BaseModel):
                 "storage": {
                     "raw_media_dir": "/srv/snapcapsule/raw",
                     "thumbnail_dir": "/srv/snapcapsule/thumbnails",
-                    "library_archives_dir": "/srv/snapcapsule/library",
-                    "ingest_cache_dir": "/srv/snapcapsule/cache",
                 },
             }
         }

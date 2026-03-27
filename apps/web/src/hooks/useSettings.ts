@@ -9,8 +9,6 @@ export type AppSettings = {
   storage: {
     raw_media_dir: string;
     thumbnail_dir: string;
-    library_archives_dir: string;
-    ingest_cache_dir: string;
   };
 };
 
