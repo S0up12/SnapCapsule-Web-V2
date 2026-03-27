@@ -85,6 +85,7 @@ describe("Memories", () => {
       tag: null,
       dateFrom: null,
       dateTo: null,
+      search: null,
     });
 
     fireEvent.click(screen.getByRole("button", { name: /sort/i }));
@@ -97,6 +98,7 @@ describe("Memories", () => {
         tag: null,
         dateFrom: null,
         dateTo: null,
+        search: null,
       });
     });
 
@@ -110,6 +112,7 @@ describe("Memories", () => {
         tag: null,
         dateFrom: null,
         dateTo: null,
+        search: null,
       });
     });
 
@@ -123,6 +126,22 @@ describe("Memories", () => {
         tag: "trip",
         dateFrom: null,
         dateTo: null,
+        search: null,
+      });
+    });
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search memories" }), {
+      target: { value: "sunrise" },
+    });
+
+    await waitFor(() => {
+      expect(useTimeline).toHaveBeenLastCalledWith({
+        sort: "asc",
+        filter: "favorites",
+        tag: "trip",
+        dateFrom: null,
+        dateTo: null,
+        search: "sunrise",
       });
     });
   });

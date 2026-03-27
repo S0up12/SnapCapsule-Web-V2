@@ -20,7 +20,15 @@ def _build_asset_app(SessionLocal, session_scope, monkeypatch) -> TestClient:
     return TestClient(app)
 
 
-def _create_memory_asset(session, *, taken_at: datetime, media_type: MediaType = MediaType.IMAGE, tags=None, is_favorite=False):
+def _create_memory_asset(
+    session,
+    *,
+    taken_at: datetime,
+    media_type: MediaType = MediaType.IMAGE,
+    tags=None,
+    is_favorite=False,
+    raw_metadata=None,
+):
     collection = session.query(MemoryCollection).first()
     if collection is None:
         collection = MemoryCollection(title="Saved Media")
@@ -36,6 +44,7 @@ def _create_memory_asset(session, *, taken_at: datetime, media_type: MediaType =
         taken_at=taken_at,
         tags=list(tags or ()),
         is_favorite=is_favorite,
+        raw_metadata=raw_metadata,
     )
     session.add(asset)
     session.flush()
@@ -156,3 +165,34 @@ def test_delete_timeline_tag_route_removes_tag_globally(db_session_factory, monk
         refreshed_second = session.get(Asset, second.id)
         assert refreshed_first.tags == ["Beach"]
         assert refreshed_second.tags == []
+
+
+def test_get_timeline_route_searches_tags_filenames_and_date_text(db_session_factory, monkeypatch):
+    SessionLocal, session_scope = db_session_factory
+    with session_scope() as session:
+        matching = _create_memory_asset(
+            session,
+            taken_at=datetime(2024, 6, 15, 13, 0, tzinfo=UTC),
+            media_type=MediaType.IMAGE,
+            tags=["Aurora"],
+            raw_metadata={
+                "source_path": "/imports/memories/Sunrise-Beach.jpg",
+                "relative_path": "memories/Sunrise-Beach.jpg",
+            },
+        )
+        _create_memory_asset(
+            session,
+            taken_at=datetime(2024, 12, 20, 9, 0, tzinfo=UTC),
+            media_type=MediaType.IMAGE,
+            tags=["Winter"],
+            raw_metadata={
+                "source_path": "/imports/memories/SkiTrip.jpg",
+                "relative_path": "memories/SkiTrip.jpg",
+            },
+        )
+
+    client = _build_asset_app(SessionLocal, session_scope, monkeypatch)
+
+    assert client.get("/api/timeline", params={"search": "aurora"}).json()["items"][0]["id"] == str(matching.id)
+    assert client.get("/api/timeline", params={"search": "sunrise-beach"}).json()["items"][0]["id"] == str(matching.id)
+    assert client.get("/api/timeline", params={"search": "june 15"}).json()["items"][0]["id"] == str(matching.id)

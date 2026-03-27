@@ -2,6 +2,7 @@ import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
   Images,
+  Search,
   SlidersHorizontal,
   Tags,
   X,
@@ -19,6 +20,7 @@ type MemoriesToolbarProps = {
   activeTag: string | null;
   dateFrom: string;
   dateTo: string;
+  search: string;
   isLoading: boolean;
   totalAssets: number;
   totalPhotos: number;
@@ -28,6 +30,8 @@ type MemoriesToolbarProps = {
   onFilterChange: (value: TimelineFilter) => void;
   onTagChange: (value: string | null) => void;
   onDateChange: (value: { dateFrom: string; dateTo: string }) => void;
+  onSearchChange: (value: string) => void;
+  onClearSearch: () => void;
   onClearDates: () => void;
 };
 
@@ -38,6 +42,7 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
     activeTag,
     dateFrom,
     dateTo,
+    search,
     isLoading,
     totalAssets,
     totalPhotos,
@@ -47,6 +52,8 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
     onFilterChange,
     onTagChange,
     onDateChange,
+    onSearchChange,
+    onClearSearch,
     onClearDates,
   } = props;
   const sortOptions = useMemo<Array<{ value: TimelineSort; label: string }>>(
@@ -75,6 +82,27 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
   return (
     <section className="flex flex-col gap-4 rounded-[1.6rem] border border-slate-200/80 bg-white/82 px-5 py-4 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.045] md:flex-row md:items-center md:justify-between">
       <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[15rem] flex-1 md:max-w-[22rem]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search memories"
+            aria-label="Search memories"
+            className="w-full rounded-[1rem] border border-slate-200 bg-slate-50 py-3 pl-10 pr-10 text-sm text-slate-900 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100"
+          />
+          {search ? (
+            <button
+              type="button"
+              onClick={onClearSearch}
+              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-200/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </label>
         <PopoverSelect
           label="Sort"
           icon={sort === "desc" ? ArrowDownWideNarrow : ArrowUpWideNarrow}

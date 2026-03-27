@@ -77,6 +77,7 @@ def get_timeline(
     tags: list[str] | None = Query(default=None),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
+    search: str | None = Query(default=None),
 ) -> TimelinePageResponse:
     """Return a paginated slice of processed assets for infinite-scroll gallery views."""
     filters = TimelineFilters(
@@ -86,6 +87,7 @@ def get_timeline(
         tags=tuple(tag.strip() for tag in (tags or []) if tag.strip()),
         date_from=date_from,
         date_to=date_to,
+        search_term=search.strip() if search and search.strip() else None,
     )
 
     with SessionLocal() as session:

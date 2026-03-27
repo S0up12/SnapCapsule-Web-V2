@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 
-from sqlalchemy import Select, case, cast, desc, func, select, text
+from sqlalchemy import Select, Text, case, cast, desc, func, or_, select, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,7 @@ class TimelineFilters:
     tags: tuple[str, ...] = ()
     date_from: date | None = None
     date_to: date | None = None
+    search_term: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +96,7 @@ def _memory_timeline_subquery():
 
 def _base_asset_filters(filters: TimelineFilters, timeline_taken_at):
     tags_jsonb = cast(Asset.tags, JSONB)
+    raw_metadata_jsonb = cast(Asset.raw_metadata, JSONB)
     clauses = [
         Asset.source_type == AssetSource.MEMORY,
         Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)),
@@ -112,6 +114,22 @@ def _base_asset_filters(filters: TimelineFilters, timeline_taken_at):
         clauses.append(timeline_taken_at >= datetime.combine(filters.date_from, time.min, tzinfo=timezone.utc))
     if filters.date_to is not None:
         clauses.append(timeline_taken_at < datetime.combine(filters.date_to + timedelta(days=1), time.min, tzinfo=timezone.utc))
+    if filters.search_term:
+        search_terms = [term.strip().lower() for term in filters.search_term.split() if term.strip()]
+        search_columns = (
+            cast(Asset.tags, Text),
+            Asset.original_path,
+            cast(raw_metadata_jsonb["source_path"].astext, Text),
+            cast(raw_metadata_jsonb["relative_path"].astext, Text),
+            func.to_char(timeline_taken_at, "YYYY-MM-DD"),
+            func.to_char(timeline_taken_at, "Mon FMDD YYYY"),
+            func.to_char(timeline_taken_at, "FMMonth FMDD YYYY"),
+            func.to_char(timeline_taken_at, "Dy Mon FMDD YYYY"),
+            func.to_char(timeline_taken_at, "FMDay FMMonth FMDD YYYY"),
+        )
+        for term in search_terms:
+            pattern = f"%{term}%"
+            clauses.append(or_(*(func.lower(column).like(pattern) for column in search_columns)))
 
     return clauses
 

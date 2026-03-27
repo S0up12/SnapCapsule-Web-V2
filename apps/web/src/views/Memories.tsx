@@ -1,5 +1,5 @@
 import { LoaderCircle } from "lucide-react";
-import { startTransition, useState } from "react";
+import { startTransition, useDeferredValue, useState } from "react";
 
 import Lightbox from "../components/Lightbox";
 import MemoriesToolbar from "../components/memories/MemoriesToolbar";
@@ -16,8 +16,10 @@ export default function Memories() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [search, setSearch] = useState("");
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [tagEditorAsset, setTagEditorAsset] = useState<TimelineAsset | null>(null);
+  const deferredSearch = useDeferredValue(search.trim());
 
   const timelineQuery = useTimeline({
     sort,
@@ -25,6 +27,7 @@ export default function Memories() {
     tag: activeTag,
     dateFrom: dateFrom || null,
     dateTo: dateTo || null,
+    search: deferredSearch || null,
   });
   const timelineTagsQuery = useTimelineTags();
   const toggleFavorite = useToggleFavorite();
@@ -53,6 +56,7 @@ export default function Memories() {
         activeTag={activeTag}
         dateFrom={dateFrom}
         dateTo={dateTo}
+        search={search}
         isLoading={isLoading}
         totalAssets={summary.total_assets}
         totalPhotos={summary.total_photos}
@@ -64,6 +68,10 @@ export default function Memories() {
         onDateChange={({ dateFrom: nextDateFrom, dateTo: nextDateTo }) => {
           setDateFrom(nextDateFrom);
           setDateTo(nextDateTo);
+        }}
+        onSearchChange={setSearch}
+        onClearSearch={() => {
+          setSearch("");
         }}
         onClearDates={() => {
           setDateFrom("");
