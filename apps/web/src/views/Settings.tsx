@@ -28,6 +28,7 @@ export default function Settings() {
 
   const settingsQuery = useSettings();
   const rescanAction = useSystemAction("/api/system/rescan");
+  const rebuildThumbnailsAction = useSystemAction("/api/system/rebuild-thumbnails");
   const resetAction = useSystemAction("/api/system/reset");
 
   useEffect(() => {
@@ -59,6 +60,11 @@ export default function Settings() {
     }
 
     const result = await resetAction.mutateAsync();
+    setDataFeedback(result);
+  }
+
+  async function handleRebuildThumbnails() {
+    const result = await rebuildThumbnailsAction.mutateAsync();
     setDataFeedback(result);
   }
 
@@ -132,8 +138,10 @@ export default function Settings() {
           {activeCategory === "storage" ? (
             <DataStoragePanel
               isRescanning={rescanAction.isPending}
+              isRebuildingThumbnails={rebuildThumbnailsAction.isPending}
               isResetting={resetAction.isPending}
               onRescan={handleRescan}
+              onRebuildThumbnails={handleRebuildThumbnails}
               onReset={handleReset}
               actionFeedback={dataFeedback}
             />

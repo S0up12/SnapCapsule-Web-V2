@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 from snapcapsule_core.services import system_tools
@@ -47,3 +48,57 @@ def test_reset_archive_data_clears_profile_snapshot_but_keeps_preferences(monkey
     assert list(workspace_dir.iterdir()) == []
     assert len(drop_calls) == 1
     assert len(create_calls) == 1
+
+
+def test_queue_thumbnail_rebuild_queues_background_task(monkeypatch, tmp_path):
+    queued = []
+    
+    class FakeQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def count(self):
+            return 1
+
+    @contextmanager
+    def fake_session_scope():
+        yield SimpleNamespace(query=lambda _model: FakeQuery())
+
+    monkeypatch.setattr(system_tools, "session_scope", fake_session_scope)
+    monkeypatch.setattr(system_tools.rebuild_thumbnail_cache, "delay", lambda: queued.append("queued"))
+    settings = SimpleNamespace(
+        thumbnail_dir=str(tmp_path / "thumbs"),
+    )
+
+    result = system_tools.queue_thumbnail_rebuild(settings)
+
+    assert result.status == "accepted"
+    assert result.affected_items == 1
+    assert queued == ["queued"]
+
+
+def test_queue_thumbnail_rebuild_returns_ok_when_no_assets(monkeypatch, tmp_path):
+    queued = []
+
+    class FakeQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def count(self):
+            return 0
+
+    @contextmanager
+    def fake_session_scope():
+        yield SimpleNamespace(query=lambda _model: FakeQuery())
+
+    monkeypatch.setattr(system_tools, "session_scope", fake_session_scope)
+    monkeypatch.setattr(system_tools.rebuild_thumbnail_cache, "delay", lambda: queued.append("queued"))
+    settings = SimpleNamespace(
+        thumbnail_dir=str(tmp_path / "thumbs"),
+    )
+
+    result = system_tools.queue_thumbnail_rebuild(settings)
+
+    assert result.status == "ok"
+    assert result.affected_items == 0
+    assert queued == []

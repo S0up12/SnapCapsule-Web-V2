@@ -167,8 +167,10 @@ export function getThumbnailUrl(
   cacheKey?: string | number | boolean | null,
   includeOverlay: boolean = true,
 ) {
+  const variant = includeOverlay ? "overlay" : "plain";
+  const version = cacheKey === undefined || cacheKey === null ? `thumb-v2-${variant}` : `${cacheKey}-thumb-v2-${variant}`;
   return withQueryParams(`/api/asset/${assetId}/thumbnail`, {
-    v: cacheKey,
+    v: version,
     include_overlay: includeOverlay ? undefined : false,
   });
 }

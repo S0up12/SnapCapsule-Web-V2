@@ -19,6 +19,10 @@ from snapcapsule_core.services.ingestion_jobs import (
     summarize_exception_message,
 )
 from snapcapsule_core.services.media_processor import MediaProcessor
+from snapcapsule_core.services.thumbnail_repairs import (
+    find_thumbnail_rebuild_candidates,
+    rebuild_thumbnail_files,
+)
 
 MAX_MEDIA_RETRIES = 3
 TRANSIENT_MEDIA_EXCEPTIONS = (OSError, OperationalError)
@@ -282,3 +286,34 @@ def process_asset_media(
 @celery_app.task(name="snapcapsule_core.tasks.media.ping_worker")
 def ping_worker() -> dict[str, str]:
     return {"status": "pong"}
+
+
+@celery_app.task(name="snapcapsule_core.tasks.media.rebuild_thumbnail_cache")
+def rebuild_thumbnail_cache() -> dict[str, int]:
+    settings = get_settings()
+    processor = MediaProcessor(settings)
+
+    with session_scope() as session:
+        assets = (
+            session.query(Asset)
+            .order_by(Asset.created_at, Asset.id)
+            .all()
+        )
+        candidates = find_thumbnail_rebuild_candidates(assets)
+        result = rebuild_thumbnail_files(
+            candidates,
+            processor=processor,
+            apply_changes=True,
+        )
+
+        rebuilt_asset_ids = {candidate.asset_id for candidate in candidates}
+        for asset in assets:
+            if asset.id not in rebuilt_asset_ids:
+                continue
+            thumbnail = processor.resolve_existing_thumbnail_path(str(asset.id), include_overlay=True)
+            asset.thumbnail_path = str(thumbnail) if thumbnail is not None else None
+
+    return {
+        "requested": len(candidates),
+        **result,
+    }

@@ -207,11 +207,11 @@ def get_asset_thumbnail(asset_id: uuid.UUID, include_overlay: bool = Query(True)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thumbnail not available.")
 
     thumbnail_path = _resolve_thumbnail_path(asset, include_overlay=include_overlay)
-    media_type = mimetypes.guess_type(thumbnail_path.name)[0] or "image/jpeg"
+    media_type = mimetypes.guess_type(thumbnail_path.name)[0] or "image/webp"
     return FileResponse(
         path=thumbnail_path,
         media_type=media_type,
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        headers={"Cache-Control": "public, max-age=3600"},
     )
 
 
@@ -322,12 +322,15 @@ def _existing_file(path_value: str, not_found_detail: str) -> Path:
 
 
 def _resolve_thumbnail_path(asset, *, include_overlay: bool) -> Path:
+    processor = MediaProcessor()
+    resolved_thumbnail_path = processor.resolve_existing_thumbnail_path(str(asset.id), include_overlay=include_overlay)
+    if resolved_thumbnail_path is not None:
+        return resolved_thumbnail_path
+
     if include_overlay or not asset.overlay_path:
         return _existing_file(asset.thumbnail_path, "Thumbnail file is missing.")
 
-    processor = MediaProcessor()
-    plain_thumbnail_path = processor.thumbnail_destination_path(str(asset.id), include_overlay=False)
-    return _existing_file(str(plain_thumbnail_path), "Thumbnail file is missing.")
+    return _existing_file(asset.thumbnail_path, "Thumbnail file is missing.")
 
 
 def _parse_range_header(range_header: str, file_size: int) -> tuple[int, int] | None:

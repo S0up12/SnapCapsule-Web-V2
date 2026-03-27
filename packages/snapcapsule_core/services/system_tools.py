@@ -7,10 +7,11 @@ from pathlib import Path
 
 from snapcapsule_core.config import Settings
 from snapcapsule_core.db import engine, session_scope
-from snapcapsule_core.models import Base, IngestionJob
-from snapcapsule_core.models.enums import IngestionJobStatus, IngestionSourceKind
+from snapcapsule_core.models import Asset, Base, IngestionJob
+from snapcapsule_core.models.enums import IngestionJobStatus, IngestionSourceKind, MediaType
 from snapcapsule_core.queue import celery_app, get_redis_client
 from snapcapsule_core.tasks.ingestion import extract_and_parse
+from snapcapsule_core.tasks.media import rebuild_thumbnail_cache
 
 
 @dataclass(slots=True)
@@ -155,4 +156,29 @@ def queue_library_rescan(settings: Settings) -> ActionResult:
         status="accepted",
         message=f"Queued {len(queued_job_ids)} mounted archive folder(s) for background rescan.",
         affected_items=len(queued_job_ids),
+    )
+
+
+def queue_thumbnail_rebuild(settings: Settings) -> ActionResult:
+    Path(settings.thumbnail_dir).mkdir(parents=True, exist_ok=True)
+
+    with session_scope() as session:
+        asset_count = (
+            session.query(Asset)
+            .filter(Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)))
+            .count()
+        )
+
+    if asset_count == 0:
+        return ActionResult(
+            status="ok",
+            message="No image or video assets were found to rebuild thumbnails for.",
+            affected_items=0,
+        )
+
+    rebuild_thumbnail_cache.delay()
+    return ActionResult(
+        status="accepted",
+        message=f"Queued a background thumbnail rebuild for {asset_count} asset(s).",
+        affected_items=asset_count,
     )

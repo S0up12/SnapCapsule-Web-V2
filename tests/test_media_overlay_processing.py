@@ -59,6 +59,8 @@ def test_generate_image_thumbnail_respects_overlay_toggle(tmp_path: Path):
     assert plain_thumbnail is not None
     assert composited_thumbnail.exists()
     assert plain_thumbnail.exists()
+    assert composited_thumbnail.suffix == ".webp"
+    assert plain_thumbnail.suffix == ".webp"
     _assert_images_differ(composited_thumbnail, plain_thumbnail)
 
 
@@ -103,6 +105,8 @@ def test_generate_video_thumbnail_composites_overlay_on_extracted_frame(tmp_path
     assert plain_thumbnail_path is not None
     assert thumbnail_path.exists()
     assert plain_thumbnail_path.exists()
+    assert thumbnail_path.suffix == ".webp"
+    assert plain_thumbnail_path.suffix == ".webp"
     assert any(Path(call[-1]).name == "frame.jpg" for call in ffmpeg_calls)
     assert any("scale=360:-1" in call for command in ffmpeg_calls for call in command)
     _assert_images_differ(thumbnail_path, plain_thumbnail_path)
@@ -143,6 +147,9 @@ def test_resolve_thumbnail_path_uses_existing_plain_thumbnail_when_overlay_disab
         def thumbnail_destination_path(self, asset_id: str, *, include_overlay: bool = True) -> Path:
             return processor.thumbnail_destination_path(asset_id, include_overlay=include_overlay)
 
+        def resolve_existing_thumbnail_path(self, asset_id: str, *, include_overlay: bool = True) -> Path | None:
+            return processor.resolve_existing_thumbnail_path(asset_id, include_overlay=include_overlay)
+
         def generate_thumbnail(self, *_args: object, **_kwargs: object) -> Path:
             raise AssertionError("The API should not generate thumbnails during request handling.")
 
@@ -151,6 +158,76 @@ def test_resolve_thumbnail_path_uses_existing_plain_thumbnail_when_overlay_disab
     resolved_path = asset_routes._resolve_thumbnail_path(asset, include_overlay=False)
 
     assert plain_thumbnail is not None
-    assert resolved_path.name.endswith("_plain.jpg")
+    assert resolved_path.name.endswith("_plain.webp")
     assert resolved_path.exists()
     _assert_images_differ(Path(asset.thumbnail_path), resolved_path)
+
+
+def test_resolve_thumbnail_path_falls_back_to_overlay_thumbnail_when_plain_variant_is_missing(tmp_path: Path, monkeypatch):
+    processor = MediaProcessor(_make_settings(tmp_path))
+    asset_id = uuid.uuid4()
+    media_path = tmp_path / "source" / "memory.jpg"
+    overlay_path = tmp_path / "source" / "memory_overlay.png"
+    _save_image(media_path, (0, 0, 255), (120, 80), mode="RGB")
+    _save_image(overlay_path, (255, 0, 0, 128), (60, 40), mode="RGBA")
+
+    overlay_thumbnail = processor.generate_thumbnail(
+        str(asset_id),
+        media_path,
+        MediaType.IMAGE,
+        overlay_path,
+        include_overlay=True,
+    )
+
+    asset = SimpleNamespace(
+        id=asset_id,
+        media_type=MediaType.IMAGE,
+        original_path=str(media_path),
+        overlay_path=str(overlay_path),
+        thumbnail_path=str(overlay_thumbnail),
+    )
+
+    class NoGenerateMediaProcessor:
+        def thumbnail_destination_path(self, asset_id: str, *, include_overlay: bool = True) -> Path:
+            return processor.thumbnail_destination_path(asset_id, include_overlay=include_overlay)
+
+        def resolve_existing_thumbnail_path(self, asset_id: str, *, include_overlay: bool = True) -> Path | None:
+            return processor.resolve_existing_thumbnail_path(asset_id, include_overlay=include_overlay)
+
+        def generate_thumbnail(self, *_args: object, **_kwargs: object) -> Path:
+            raise AssertionError("The API should not generate thumbnails during request handling.")
+
+    monkeypatch.setattr(asset_routes, "MediaProcessor", NoGenerateMediaProcessor)
+
+    resolved_path = asset_routes._resolve_thumbnail_path(asset, include_overlay=False)
+
+    assert overlay_thumbnail is not None
+    assert resolved_path == overlay_thumbnail
+    assert resolved_path.exists()
+
+
+def test_resolve_thumbnail_path_prefers_webp_variant_over_legacy_jpeg(tmp_path: Path, monkeypatch):
+    processor = MediaProcessor(_make_settings(tmp_path))
+    asset_id = uuid.uuid4()
+    webp_path = processor.thumbnail_destination_path(str(asset_id))
+    jpeg_path = processor.thumbnail_destination_path(str(asset_id), extension=".jpg")
+    _save_image(webp_path, (0, 0, 255), (120, 80), mode="RGB")
+    _save_image(jpeg_path, (255, 0, 0), (120, 80), mode="RGB")
+
+    asset = SimpleNamespace(
+        id=asset_id,
+        media_type=MediaType.IMAGE,
+        original_path=str(tmp_path / "source" / "memory.jpg"),
+        overlay_path=None,
+        thumbnail_path=str(jpeg_path),
+    )
+
+    class TempSettingsMediaProcessor:
+        def resolve_existing_thumbnail_path(self, asset_id: str, *, include_overlay: bool = True) -> Path | None:
+            return processor.resolve_existing_thumbnail_path(asset_id, include_overlay=include_overlay)
+
+    monkeypatch.setattr(asset_routes, "MediaProcessor", TempSettingsMediaProcessor)
+
+    resolved_path = asset_routes._resolve_thumbnail_path(asset, include_overlay=True)
+
+    assert resolved_path == webp_path

@@ -13,6 +13,8 @@ from snapcapsule_core.config import Settings, get_settings
 from snapcapsule_core.models.enums import AssetSource, MediaType
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm", ".mkv", ".m4v"}
+THUMBNAIL_EXTENSION = ".webp"
+LEGACY_THUMBNAIL_EXTENSIONS = (THUMBNAIL_EXTENSION, ".jpg")
 
 
 class MediaProcessor:
@@ -25,9 +27,22 @@ class MediaProcessor:
     def overlay_destination_path(self, asset_id: str, source_type: AssetSource, suffix: str) -> Path:
         return Path(self.settings.raw_media_dir) / source_type.value / f"{asset_id}_overlay{suffix.lower()}"
 
-    def thumbnail_destination_path(self, asset_id: str, *, include_overlay: bool = True) -> Path:
+    def thumbnail_destination_path(
+        self,
+        asset_id: str,
+        *,
+        include_overlay: bool = True,
+        extension: str = THUMBNAIL_EXTENSION,
+    ) -> Path:
         suffix = "" if include_overlay else "_plain"
-        return Path(self.settings.thumbnail_dir) / f"{asset_id}{suffix}.jpg"
+        return Path(self.settings.thumbnail_dir) / f"{asset_id}{suffix}{extension}"
+
+    def resolve_existing_thumbnail_path(self, asset_id: str, *, include_overlay: bool = True) -> Path | None:
+        for extension in LEGACY_THUMBNAIL_EXTENSIONS:
+            candidate = self.thumbnail_destination_path(asset_id, include_overlay=include_overlay, extension=extension)
+            if candidate.exists() and candidate.is_file():
+                return candidate
+        return None
 
     def store_media_file(
         self,
@@ -99,7 +114,7 @@ class MediaProcessor:
         with Image.open(media_path) as image:
             image = self._compose_overlay(image, overlay_path)
             image.thumbnail((360, 360), Image.Resampling.LANCZOS)
-            image.save(destination, format="JPEG", quality=60, optimize=True)
+            self._save_thumbnail_image(image, destination)
 
         return destination
 
@@ -109,31 +124,6 @@ class MediaProcessor:
         destination: Path,
         overlay_path: str | Path | None = None,
     ) -> Path:
-        if not overlay_path or not Path(overlay_path).exists():
-            command = [
-                "ffmpeg",
-                "-y",
-                "-ss",
-                "00:00:00",
-                "-i",
-                str(media_path),
-                "-frames:v",
-                "1",
-                "-vf",
-                "scale=360:-1",
-                "-q:v",
-                "8",
-                str(destination),
-            ]
-            subprocess.run(
-                command,
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=20,
-            )
-            return destination
-
         with tempfile.TemporaryDirectory(prefix="snapcapsule-thumb-") as temp_dir:
             frame_path = Path(temp_dir) / "frame.jpg"
             command = [
@@ -145,6 +135,8 @@ class MediaProcessor:
                 str(media_path),
                 "-frames:v",
                 "1",
+                "-vf",
+                "scale=360:-1",
                 str(frame_path),
             ]
             subprocess.run(
@@ -157,8 +149,11 @@ class MediaProcessor:
             with Image.open(frame_path) as frame:
                 image = self._compose_overlay(frame, overlay_path)
                 image.thumbnail((360, 360), Image.Resampling.LANCZOS)
-                image.save(destination, format="JPEG", quality=60, optimize=True)
+                self._save_thumbnail_image(image, destination)
         return destination
+
+    def _save_thumbnail_image(self, image: Image.Image, destination: Path) -> None:
+        image.save(destination, format="WEBP", quality=72, method=6)
 
     def _compose_overlay(self, image: Image.Image, overlay_path: str | Path | None = None) -> Image.Image:
         image = ImageOps.exif_transpose(image)

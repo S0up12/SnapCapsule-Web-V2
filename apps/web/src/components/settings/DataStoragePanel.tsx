@@ -1,4 +1,4 @@
-import { CheckCircle2, RotateCcw, Trash2 } from "lucide-react";
+import { CheckCircle2, ImageUp, RotateCcw, Trash2 } from "lucide-react";
 
 import SettingsCard from "./SettingsCard";
 import SettingRow from "./SettingRow";
@@ -6,16 +6,20 @@ import type { SystemActionResponse } from "../../hooks/useSystemStatus";
 
 type DataStoragePanelProps = {
   isRescanning: boolean;
+  isRebuildingThumbnails: boolean;
   isResetting: boolean;
   onRescan: () => Promise<void>;
+  onRebuildThumbnails: () => Promise<void>;
   onReset: () => Promise<void>;
   actionFeedback: SystemActionResponse | null;
 };
 
 export default function DataStoragePanel({
   isRescanning,
+  isRebuildingThumbnails,
   isResetting,
   onRescan,
+  onRebuildThumbnails,
   onReset,
   actionFeedback,
 }: DataStoragePanelProps) {
@@ -34,6 +38,21 @@ export default function DataStoragePanel({
           >
             <RotateCcw className="h-4 w-4" />
             {isRescanning ? "Queueing rescan..." : "Re-scan Library"}
+          </button>
+        </SettingRow>
+
+        <SettingRow
+          title="Rebuild thumbnail cache"
+          description="Regenerate all image and video thumbnails in the background using the current thumbnail pipeline."
+        >
+          <button
+            type="button"
+            disabled={isRebuildingThumbnails}
+            onClick={() => void onRebuildThumbnails()}
+            className="inline-flex items-center gap-2 rounded-[1rem] border border-sky-300/20 bg-sky-400/[0.12] px-4 py-3 text-sm font-medium text-sky-950 transition hover:border-sky-300/30 hover:bg-sky-400/[0.18] disabled:cursor-not-allowed disabled:opacity-60 dark:text-sky-100"
+          >
+            <ImageUp className="h-4 w-4" />
+            {isRebuildingThumbnails ? "Queueing rebuild..." : "Rebuild Thumbnail Cache"}
           </button>
         </SettingRow>
 

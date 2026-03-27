@@ -7,6 +7,7 @@ from snapcapsule_core.services.system_tools import (
     clear_ingestion_cache,
     get_system_queue_status,
     queue_library_rescan,
+    queue_thumbnail_rebuild,
     reset_archive_data,
 )
 
@@ -93,6 +94,22 @@ def get_system_status() -> SystemStatusResponse:
 def post_system_rescan() -> SystemActionResponse:
     """Queue background ingestion jobs for mounted archive directories found under the archive rescan folder."""
     result = queue_library_rescan(settings)
+    return SystemActionResponse(
+        status=result.status,
+        message=result.message,
+        affected_items=result.affected_items,
+    )
+
+
+@router.post(
+    "/system/rebuild-thumbnails",
+    response_model=SystemActionResponse,
+    tags=["System"],
+    summary="Queue a full thumbnail cache rebuild",
+)
+def post_rebuild_thumbnails() -> SystemActionResponse:
+    """Queue background regeneration of all image and video thumbnails in the current library."""
+    result = queue_thumbnail_rebuild(settings)
     return SystemActionResponse(
         status=result.status,
         message=result.message,

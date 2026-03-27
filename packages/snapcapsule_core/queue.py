@@ -19,6 +19,7 @@ def create_celery_app() -> Celery:
             "snapcapsule_core.tasks.media.generate_asset_derivatives": {"queue": "media"},
             "snapcapsule_core.tasks.media.process_asset_media": {"queue": "media"},
             "snapcapsule_core.tasks.media.ping_worker": {"queue": "media"},
+            "snapcapsule_core.tasks.media.rebuild_thumbnail_cache": {"queue": "media"},
         },
         task_serializer="json",
         result_serializer="json",
