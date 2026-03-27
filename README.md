@@ -56,25 +56,28 @@ pyproject.toml
 
 ## Storage Model
 
-The default compose stack uses Docker-managed named volumes for all persistent app data. This is the safest option for Portainer and other server deployments because Docker creates the storage in a writable location automatically.
+The compose stack maps clear, server-friendly host paths into the Python services:
 
-- `db_data` for PostgreSQL persistence
-- `redis_data` for Redis append-only storage
-- `raw_media` for original Snapchat media files
-- `thumbnails` for generated thumbnail files
-- `library_archives` for folders scanned by the library rescan action
-- `ingest_cache` for uploaded ZIP bundles, extraction workspaces, and app cache files
+- `DB_DATA_DIR` for PostgreSQL persistence
+- `RAW_MEDIA_DIR` for original Snapchat media files
+- `THUMBNAILS_DIR` for generated thumbnail files
+- `LIBRARY_ARCHIVES_DIR` for mounted archive folders that the rescan action should scan
+- `INGEST_CACHE_DIR` for uploaded ZIP bundles, extraction workspaces, and app cache files
 
-That means a beginner-friendly deploy can usually work without setting any storage path variables at all.
+Default local paths are:
 
-If you want the app to scan archive folders that already exist somewhere on your server, replace the `library_archives` mount in [docker-compose.yml](c:/Users/Sammy/Documents/GitHub/SnapCapsule%20Web/docker-compose.yml) with a bind mount to a real host folder.
+- `./data/postgres`
+- `./data/raw`
+- `./data/thumbnails`
+- `./data/library`
+- `./data/cache`
 
 That keeps media serving simple and fast: the API reads metadata from Postgres, while both the API and worker can access the same files without copying blobs through Redis or the database.
 
 ## Quick Start
 
 1. Copy `.env.example` to `.env`.
-2. Adjust the port and runtime variables if needed.
+2. Adjust the storage and port variables if needed.
 3. Start the full development stack:
 
 ```bash
@@ -94,6 +97,11 @@ The frontend runs through Vite on port `3000`, the API runs on port `8000`, and 
 
 These are the main variables you would typically set in Portainer or another container UI:
 
+- `DB_DATA_DIR`
+- `RAW_MEDIA_DIR`
+- `THUMBNAILS_DIR`
+- `LIBRARY_ARCHIVES_DIR`
+- `INGEST_CACHE_DIR`
 - `API_PORT`
 - `WEB_PORT`
 - `ALLOWED_ORIGINS`
@@ -101,8 +109,6 @@ These are the main variables you would typically set in Portainer or another con
 - `POSTGRES_DB`
 - `POSTGRES_USER`
 - `POSTGRES_PASSWORD`
-
-For most users, storage should be left on the default Docker volumes. Only move to host bind mounts when you have a specific reason and know the target folders are writable on the server.
 
 ## Tests
 
