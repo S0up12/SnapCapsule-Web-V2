@@ -11,6 +11,12 @@ type TagDeleteResponse = {
   affected_assets: number;
 };
 
+type AssetLike = {
+  id: string;
+  is_favorite: boolean;
+  tags: string[];
+};
+
 type TimelineItem = AssetMutationResponse & {
   taken_at: string | null;
   media_type: "image" | "video";
@@ -107,6 +113,20 @@ async function deleteTimelineTag(tag: string): Promise<TagDeleteResponse> {
   }
 
   return (await response.json()) as TagDeleteResponse;
+}
+
+function normalizeTags(tags: string[]) {
+  const normalized = new Map<string, string>();
+  for (const rawTag of tags) {
+    const value = rawTag.trim();
+    if (!value) {
+      continue;
+    }
+    if (!normalized.has(value.toLocaleLowerCase())) {
+      normalized.set(value.toLocaleLowerCase(), value);
+    }
+  }
+  return [...normalized.values()].sort((left, right) => left.localeCompare(right));
 }
 
 function invalidateTimelineQueries(queryClient: ReturnType<typeof useQueryClient>, { includeTags }: { includeTags: boolean }) {
@@ -265,6 +285,66 @@ export function useUpdateAssetTags() {
     mutationFn: ({ assetId, tags }: { assetId: string; tags: string[] }) => postTags(assetId, tags),
     onSuccess: (updated) => {
       applyAssetMutation(queryClient, updated);
+      invalidateTimelineQueries(queryClient, { includeTags: true });
+    },
+  });
+}
+
+export function useBulkSetFavorite() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ assets, isFavorite }: { assets: AssetLike[]; isFavorite: boolean }) => {
+      const pendingAssets = assets.filter((asset) => asset.is_favorite !== isFavorite);
+      const updates = await Promise.all(pendingAssets.map((asset) => postFavorite(asset.id)));
+      return updates;
+    },
+    onSuccess: (updatedAssets) => {
+      updatedAssets.forEach((updated) => {
+        applyAssetMutation(queryClient, updated);
+      });
+      invalidateTimelineQueries(queryClient, { includeTags: false });
+    },
+  });
+}
+
+export function useBulkUpdateTags() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      assets,
+      tags,
+      mode,
+    }: {
+      assets: AssetLike[];
+      tags: string[];
+      mode: "add" | "remove";
+    }) => {
+      const normalizedTags = normalizeTags(tags);
+      const updates: Promise<AssetMutationResponse>[] = [];
+
+      for (const asset of assets) {
+        const currentTags = normalizeTags(asset.tags);
+        const nextTags =
+          mode === "add"
+            ? normalizeTags([...currentTags, ...normalizedTags])
+            : currentTags.filter(
+                (existing) => !normalizedTags.some((tag) => tag.toLocaleLowerCase() === existing.toLocaleLowerCase()),
+              );
+
+        if (JSON.stringify(nextTags) === JSON.stringify(currentTags)) {
+          continue;
+        }
+        updates.push(postTags(asset.id, nextTags));
+      }
+
+      return Promise.all(updates);
+    },
+    onSuccess: (updatedAssets) => {
+      updatedAssets.forEach((updated) => {
+        applyAssetMutation(queryClient, updated);
+      });
       invalidateTimelineQueries(queryClient, { includeTags: true });
     },
   });

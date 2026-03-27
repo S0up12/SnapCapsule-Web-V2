@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { getThumbnailUrl } from "./useTimeline";
 
 describe("getThumbnailUrl", () => {
@@ -11,7 +13,7 @@ describe("getThumbnailUrl", () => {
 
 describe("timeline search params", () => {
   it("includes search terms in the timeline request query", async () => {
-    const originalFetch = global.fetch;
+    const originalFetch = globalThis.fetch;
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -27,7 +29,7 @@ describe("timeline search params", () => {
         },
       }),
     });
-    global.fetch = fetchMock as typeof global.fetch;
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
     try {
       const React = await import("react");
       const { useTimeline } = await import("./useTimeline");
@@ -35,7 +37,7 @@ describe("timeline search params", () => {
       const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
 
       const queryClient = new QueryClient();
-      const wrapper = ({ children }: { children: unknown }) =>
+      const wrapper = ({ children }: { children: ReactNode }) =>
         React.createElement(QueryClientProvider, { client: queryClient }, children);
 
       renderHook(
@@ -56,7 +58,7 @@ describe("timeline search params", () => {
       });
       expect(fetchMock.mock.calls[0]?.[0]).toContain("search=sunrise+june");
     } finally {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     }
   });
 });

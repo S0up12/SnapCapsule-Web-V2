@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
 import { memo, useEffect, useRef, useState } from "react";
-import { Star, Tags } from "lucide-react";
+import { CheckCircle2, Star, Tags } from "lucide-react";
 
 import { getMemoryMediaTypeIcon } from "./mediaTypeIcons";
 import { getOriginalUrl, getOverlayUrl, getThumbnailUrl, type TimelineAsset } from "../../hooks/useTimeline";
@@ -14,9 +14,12 @@ export default memo(function TimelineTile({
   height,
   autoplayVideosInGrid,
   showOverlays,
+  selectionMode,
+  isSelected,
   onOpenAsset,
   onToggleFavorite,
   onEditTags,
+  onToggleSelection,
   onRequestContextMenu,
 }: {
   asset: TimelineAsset;
@@ -25,9 +28,12 @@ export default memo(function TimelineTile({
   height: number;
   autoplayVideosInGrid: boolean;
   showOverlays: boolean;
+  selectionMode: boolean;
+  isSelected: boolean;
   onOpenAsset: (index: number) => void;
   onToggleFavorite: (asset: TimelineAsset) => void;
   onEditTags: (asset: TimelineAsset) => void;
+  onToggleSelection: (asset: TimelineAsset, shiftKey: boolean) => void;
   onRequestContextMenu: (event: MouseEvent<HTMLButtonElement>, asset: TimelineAsset, index: number) => void;
 }) {
   const hoverPreviewTimeoutRef = useRef<number | null>(null);
@@ -81,15 +87,35 @@ export default memo(function TimelineTile({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onBlur={handleMouseLeave}
-      className="group relative overflow-hidden rounded-[1.35rem] border border-slate-200/70 bg-white text-left shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-sky-300/30 hover:shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/10 dark:bg-slate-950 dark:shadow-black/25"
+      className={[
+        "group relative overflow-hidden rounded-[1.35rem] border bg-white text-left shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition dark:bg-slate-950 dark:shadow-black/25",
+        selectionMode
+          ? isSelected
+            ? "border-sky-400 shadow-[0_24px_60px_rgba(14,165,233,0.22)] dark:border-sky-300"
+            : "border-slate-200/70 hover:border-sky-300/30 dark:border-white/10"
+          : "border-slate-200/70 hover:-translate-y-0.5 hover:border-sky-300/30 hover:shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/10",
+      ].join(" ")}
       style={{ width, height }}
     >
       <button
         type="button"
-        onClick={() => onOpenAsset(index)}
-        onContextMenu={(event) => onRequestContextMenu(event, asset, index)}
+        onClick={(event) => {
+          if (selectionMode) {
+            onToggleSelection(asset, event.shiftKey);
+            return;
+          }
+          onOpenAsset(index);
+        }}
+        onContextMenu={(event) => {
+          if (selectionMode) {
+            event.preventDefault();
+            onToggleSelection(asset, event.shiftKey);
+            return;
+          }
+          onRequestContextMenu(event, asset, index);
+        }}
         className="block h-full w-full"
-        aria-label={`Open ${asset.media_type}`}
+        aria-label={selectionMode ? `${isSelected ? "Deselect" : "Select"} ${asset.media_type}` : `Open ${asset.media_type}`}
       >
         {isPreviewingVideo ? (
           <div className="relative h-full w-full">
@@ -122,6 +148,21 @@ export default memo(function TimelineTile({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 transition duration-200 group-hover:opacity-100" />
       </button>
 
+      {selectionMode ? (
+        <div className="pointer-events-none absolute left-3 top-3 z-10">
+          <span
+            className={[
+              "inline-flex h-7 w-7 items-center justify-center rounded-full border shadow-sm transition",
+              isSelected
+                ? "border-sky-400 bg-sky-500 text-white"
+                : "border-white/50 bg-black/35 text-white/80",
+            ].join(" ")}
+          >
+            <CheckCircle2 className="h-4.5 w-4.5" />
+          </span>
+        </div>
+      ) : null}
+
       <div className="absolute inset-x-0 bottom-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center px-3 pb-3">
         <button
           type="button"
@@ -131,7 +172,11 @@ export default memo(function TimelineTile({
           }}
           className={[
             "inline-flex items-center justify-self-start p-1 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] transition duration-150",
-            asset.is_favorite ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+            selectionMode
+              ? "pointer-events-none opacity-0"
+              : asset.is_favorite
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
           ].join(" ")}
           aria-label={asset.is_favorite ? "Remove from favorites" : "Add to favorites"}
           title={asset.is_favorite ? "Unfavorite" : "Favorite"}
@@ -149,7 +194,10 @@ export default memo(function TimelineTile({
             event.stopPropagation();
             onEditTags(asset);
           }}
-          className="inline-flex items-center justify-self-end p-1 text-white opacity-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+          className={[
+            "inline-flex items-center justify-self-end p-1 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] transition duration-150",
+            selectionMode ? "pointer-events-none opacity-0" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+          ].join(" ")}
           aria-label="Edit tags"
           title="Edit tags"
         >

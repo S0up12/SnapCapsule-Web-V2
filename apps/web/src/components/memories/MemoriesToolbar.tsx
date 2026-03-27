@@ -2,6 +2,7 @@ import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
   Images,
+  MousePointerSquareDashed,
   Search,
   SlidersHorizontal,
   Tags,
@@ -21,6 +22,8 @@ type MemoriesToolbarProps = {
   dateFrom: string;
   dateTo: string;
   search: string;
+  selectionMode: boolean;
+  selectedCount: number;
   isLoading: boolean;
   totalAssets: number;
   totalPhotos: number;
@@ -33,6 +36,7 @@ type MemoriesToolbarProps = {
   onSearchChange: (value: string) => void;
   onClearSearch: () => void;
   onClearDates: () => void;
+  onToggleSelectionMode: () => void;
 };
 
 export default function MemoriesToolbar(props: MemoriesToolbarProps) {
@@ -43,6 +47,8 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
     dateFrom,
     dateTo,
     search,
+    selectionMode,
+    selectedCount,
     isLoading,
     totalAssets,
     totalPhotos,
@@ -55,6 +61,7 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
     onSearchChange,
     onClearSearch,
     onClearDates,
+    onToggleSelectionMode,
   } = props;
   const sortOptions = useMemo<Array<{ value: TimelineSort; label: string }>>(
     () => [
@@ -125,6 +132,19 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
           options={tagOptions}
         />
         <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={onDateChange} />
+        <button
+          type="button"
+          onClick={onToggleSelectionMode}
+          className={[
+            "inline-flex items-center gap-2 rounded-[1rem] border px-3 py-2 text-sm font-medium shadow-sm transition",
+            selectionMode
+              ? "border-sky-300/20 bg-sky-400/[0.12] text-sky-950 dark:text-sky-100"
+              : "border-slate-200/80 bg-white/90 text-slate-700 hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-slate-950/65 dark:text-slate-200 dark:hover:text-white",
+          ].join(" ")}
+        >
+          <MousePointerSquareDashed className="h-4 w-4" />
+          {selectionMode ? `Cancel Select${selectedCount > 0 ? ` (${selectedCount})` : ""}` : "Select"}
+        </button>
         {dateFrom || dateTo ? (
           <button
             type="button"

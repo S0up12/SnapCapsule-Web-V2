@@ -25,6 +25,9 @@ type VirtualTimelineGridProps = {
   onOpenAsset: (index: number) => void;
   onToggleFavorite: (asset: TimelineAsset) => Promise<void>;
   onEditTags: (asset: TimelineAsset) => void;
+  selectionMode: boolean;
+  selectedAssetIds: Set<string>;
+  onToggleSelection: (asset: TimelineAsset, shiftKey: boolean) => void;
 };
 
 type ContextMenuState = {
@@ -111,6 +114,9 @@ export default function VirtualTimelineGrid({
   onOpenAsset,
   onToggleFavorite,
   onEditTags,
+  selectionMode,
+  selectedAssetIds,
+  onToggleSelection,
 }: VirtualTimelineGridProps) {
   const showOverlays = useShowMemoryOverlays();
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
@@ -285,9 +291,12 @@ export default function VirtualTimelineGrid({
                           height={tileHeight}
                           autoplayVideosInGrid={autoplayVideosInGrid}
                           showOverlays={showOverlays}
+                          selectionMode={selectionMode}
+                          isSelected={selectedAssetIds.has(asset.id)}
                           onOpenAsset={handleOpenAsset}
                           onToggleFavorite={handleToggleFavorite}
                           onEditTags={handleEditTags}
+                          onToggleSelection={onToggleSelection}
                           onRequestContextMenu={handleRequestContextMenu}
                         />
                       ))}

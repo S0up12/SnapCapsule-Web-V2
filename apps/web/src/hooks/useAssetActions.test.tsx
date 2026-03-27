@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { useToggleFavorite } from "./useAssetActions";
+import { useBulkSetFavorite, useBulkUpdateTags, useToggleFavorite } from "./useAssetActions";
 
 type TimelineCache = {
   pages: Array<{
@@ -50,7 +50,7 @@ describe("useToggleFavorite", () => {
       },
     });
 
-    queryClient.setQueryData(["timeline", "desc", "all", "", "", ""], {
+    queryClient.setQueryData(["timeline", "desc", "all", "", "", "", ""], {
       pageParams: [0],
       pages: [
         {
@@ -146,7 +146,7 @@ describe("useToggleFavorite", () => {
     await result.current.mutateAsync("asset-1");
 
     await waitFor(() => {
-      const timeline = queryClient.getQueryData<TimelineCache>(["timeline", "desc", "all", "", "", ""]);
+      const timeline = queryClient.getQueryData<TimelineCache>(["timeline", "desc", "all", "", "", "", ""]);
       expect(timeline).toBeTruthy();
       expect(timeline!.pages[0].items[0]).toMatchObject({
         id: "asset-1",
@@ -167,6 +167,165 @@ describe("useToggleFavorite", () => {
         is_favorite: true,
         tags: ["favorite"],
       });
+    });
+  });
+});
+
+describe("bulk asset actions", () => {
+  it("patches all matching cached assets when bulk favorite is applied", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+
+    queryClient.setQueryData(["timeline", "desc", "all", "", "", "", ""], {
+      pageParams: [0],
+      pages: [
+        {
+          items: [
+            {
+              id: "asset-1",
+              taken_at: null,
+              media_type: "image",
+              is_favorite: false,
+              tags: [],
+              has_overlay: false,
+            },
+            {
+              id: "asset-2",
+              taken_at: null,
+              media_type: "image",
+              is_favorite: false,
+              tags: ["trip"],
+              has_overlay: false,
+            },
+          ],
+          limit: 100,
+          offset: 0,
+          total: 2,
+          has_more: false,
+          summary: {
+            total_assets: 2,
+            total_photos: 2,
+            total_videos: 0,
+          },
+        },
+      ],
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ id: "asset-1", is_favorite: true, tags: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ id: "asset-2", is_favorite: true, tags: ["trip"] }),
+        }),
+    );
+
+    const { result } = renderHook(() => useBulkSetFavorite(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await result.current.mutateAsync({
+      assets: [
+        { id: "asset-1", is_favorite: false, tags: [] },
+        { id: "asset-2", is_favorite: false, tags: ["trip"] },
+      ],
+      isFavorite: true,
+    });
+
+    await waitFor(() => {
+      const timeline = queryClient.getQueryData<TimelineCache>(["timeline", "desc", "all", "", "", "", ""]);
+      expect(timeline?.pages[0].items).toMatchObject([
+        { id: "asset-1", is_favorite: true, tags: [] },
+        { id: "asset-2", is_favorite: true, tags: ["trip"] },
+      ]);
+    });
+  });
+
+  it("merges tags across selected assets when bulk add is applied", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+
+    queryClient.setQueryData(["timeline", "desc", "all", "", "", "", ""], {
+      pageParams: [0],
+      pages: [
+        {
+          items: [
+            {
+              id: "asset-1",
+              taken_at: null,
+              media_type: "image",
+              is_favorite: false,
+              tags: ["trip"],
+              has_overlay: false,
+            },
+            {
+              id: "asset-2",
+              taken_at: null,
+              media_type: "image",
+              is_favorite: false,
+              tags: [],
+              has_overlay: false,
+            },
+          ],
+          limit: 100,
+          offset: 0,
+          total: 2,
+          has_more: false,
+          summary: {
+            total_assets: 2,
+            total_photos: 2,
+            total_videos: 0,
+          },
+        },
+      ],
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ id: "asset-1", is_favorite: false, tags: ["trip", "beach"] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ id: "asset-2", is_favorite: false, tags: ["beach"] }),
+        }),
+    );
+
+    const { result } = renderHook(() => useBulkUpdateTags(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await result.current.mutateAsync({
+      assets: [
+        { id: "asset-1", is_favorite: false, tags: ["trip"] },
+        { id: "asset-2", is_favorite: false, tags: [] },
+      ],
+      tags: ["beach"],
+      mode: "add",
+    });
+
+    await waitFor(() => {
+      const timeline = queryClient.getQueryData<TimelineCache>(["timeline", "desc", "all", "", "", "", ""]);
+      expect(timeline?.pages[0].items).toMatchObject([
+        { id: "asset-1", tags: ["trip", "beach"] },
+        { id: "asset-2", tags: ["beach"] },
+      ]);
     });
   });
 });

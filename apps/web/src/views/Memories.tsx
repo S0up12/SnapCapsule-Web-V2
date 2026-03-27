@@ -1,13 +1,16 @@
 import { LoaderCircle } from "lucide-react";
-import { startTransition, useDeferredValue, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import Lightbox from "../components/Lightbox";
+import BulkSelectionBar from "../components/memories/BulkSelectionBar";
+import BulkTagModal from "../components/memories/BulkTagModal";
 import MemoriesToolbar from "../components/memories/MemoriesToolbar";
 import TagEditorModal from "../components/memories/TagEditorModal";
 import VirtualTimelineGrid from "../components/VirtualTimelineGrid";
-import { useDeleteTimelineTag, useToggleFavorite, useUpdateAssetTags } from "../hooks/useAssetActions";
+import { useBulkSetFavorite, useBulkUpdateTags, useDeleteTimelineTag, useToggleFavorite, useUpdateAssetTags } from "../hooks/useAssetActions";
 import { useMemoryGridPreferences } from "../hooks/useMemoryGridPreferences";
 import { useTimeline, useTimelineTags, type TimelineAsset, type TimelineFilter, type TimelineSort } from "../hooks/useTimeline";
+import { applyMemorySelection } from "./memorySelection";
 
 export default function Memories() {
   const { autoplayVideosInGrid, defaultGridSize } = useMemoryGridPreferences();
@@ -17,8 +20,12 @@ export default function Memories() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [selectionAnchorAssetId, setSelectionAnchorAssetId] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [tagEditorAsset, setTagEditorAsset] = useState<TimelineAsset | null>(null);
+  const [bulkTagMode, setBulkTagMode] = useState<"add" | "remove" | null>(null);
   const deferredSearch = useDeferredValue(search.trim());
 
   const timelineQuery = useTimeline({
@@ -31,6 +38,8 @@ export default function Memories() {
   });
   const timelineTagsQuery = useTimelineTags();
   const toggleFavorite = useToggleFavorite();
+  const bulkSetFavorite = useBulkSetFavorite();
+  const bulkUpdateTags = useBulkUpdateTags();
   const updateAssetTags = useUpdateAssetTags();
   const deleteTimelineTag = useDeleteTimelineTag();
 
@@ -47,6 +56,20 @@ export default function Memories() {
   } = timelineQuery;
 
   const selectedAsset = selectedIndex !== null ? assets[selectedIndex] : null;
+  const selectedAssetIdsSet = useMemo(() => new Set(selectedAssetIds), [selectedAssetIds]);
+  const selectedAssets = useMemo(
+    () => assets.filter((asset) => selectedAssetIdsSet.has(asset.id)),
+    [assets, selectedAssetIdsSet],
+  );
+
+  useEffect(() => {
+    if (!selectionMode) {
+      return;
+    }
+    const visibleAssetIds = new Set(assets.map((asset) => asset.id));
+    setSelectedAssetIds((current) => current.filter((assetId) => visibleAssetIds.has(assetId)));
+    setSelectionAnchorAssetId((current) => (current && visibleAssetIds.has(current) ? current : null));
+  }, [assets, selectionMode]);
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1740px] flex-col gap-5 overflow-hidden">
@@ -57,6 +80,8 @@ export default function Memories() {
         dateFrom={dateFrom}
         dateTo={dateTo}
         search={search}
+        selectionMode={selectionMode}
+        selectedCount={selectedAssetIds.length}
         isLoading={isLoading}
         totalAssets={summary.total_assets}
         totalPhotos={summary.total_photos}
@@ -77,7 +102,39 @@ export default function Memories() {
           setDateFrom("");
           setDateTo("");
         }}
+        onToggleSelectionMode={() => {
+          setSelectionMode((current) => {
+            if (current) {
+              setSelectedAssetIds([]);
+              setSelectionAnchorAssetId(null);
+            }
+            return !current;
+          });
+        }}
       />
+
+      {selectionMode && selectedAssetIds.length > 0 ? (
+        <BulkSelectionBar
+          selectedCount={selectedAssetIds.length}
+          isSaving={bulkSetFavorite.isPending || bulkUpdateTags.isPending}
+          onClearSelection={() => {
+            setSelectedAssetIds([]);
+            setSelectionAnchorAssetId(null);
+          }}
+          onFavoriteSelected={async () => {
+            await bulkSetFavorite.mutateAsync({ assets: selectedAssets, isFavorite: true });
+            setSelectedAssetIds([]);
+            setSelectionAnchorAssetId(null);
+          }}
+          onUnfavoriteSelected={async () => {
+            await bulkSetFavorite.mutateAsync({ assets: selectedAssets, isFavorite: false });
+            setSelectedAssetIds([]);
+            setSelectionAnchorAssetId(null);
+          }}
+          onAddTags={() => setBulkTagMode("add")}
+          onRemoveTags={() => setBulkTagMode("remove")}
+        />
+      ) : null}
 
       {isError ? (
         <div className="rounded-[1.25rem] border border-rose-300/40 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100">
@@ -95,6 +152,19 @@ export default function Memories() {
           isFetchingNextPage={isFetchingNextPage}
           isInitialLoading={isLoading}
           fetchNextPage={fetchNextPage}
+          selectionMode={selectionMode}
+          selectedAssetIds={selectedAssetIdsSet}
+          onToggleSelection={(asset, shiftKey) => {
+            const nextSelection = applyMemorySelection({
+              currentSelectedAssetIds: selectedAssetIds,
+              assets,
+              clickedAssetId: asset.id,
+              shiftKey,
+              anchorAssetId: selectionAnchorAssetId,
+            });
+            setSelectedAssetIds(nextSelection.selectedAssetIds);
+            setSelectionAnchorAssetId(nextSelection.anchorAssetId);
+          }}
           onOpenAsset={(index) => {
             startTransition(() => {
               setSelectedIndex(index);
@@ -109,10 +179,16 @@ export default function Memories() {
         />
       ) : null}
 
-      {(isFetchingNextPage || toggleFavorite.isPending || updateAssetTags.isPending || deleteTimelineTag.isPending) && assets.length > 0 ? (
+      {(isFetchingNextPage || toggleFavorite.isPending || bulkSetFavorite.isPending || bulkUpdateTags.isPending || updateAssetTags.isPending || deleteTimelineTag.isPending) && assets.length > 0 ? (
         <div className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/92 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur dark:border-white/10 dark:bg-slate-950/90 dark:text-slate-200 dark:shadow-black/30">
           <LoaderCircle className="h-4 w-4 animate-spin" />
-          {isFetchingNextPage ? "Fetching more assets" : deleteTimelineTag.isPending ? "Deleting tag" : "Saving changes"}
+          {isFetchingNextPage
+            ? "Fetching more assets"
+            : deleteTimelineTag.isPending
+              ? "Deleting tag"
+              : bulkUpdateTags.isPending || bulkSetFavorite.isPending
+                ? "Applying bulk changes"
+                : "Saving changes"}
         </div>
       ) : null}
 
@@ -152,6 +228,24 @@ export default function Memories() {
             if (activeTag?.trim().toLocaleLowerCase() === tag.trim().toLocaleLowerCase()) {
               setActiveTag(null);
             }
+          }}
+        />
+      ) : null}
+
+      {bulkTagMode ? (
+        <BulkTagModal
+          mode={bulkTagMode}
+          selectedCount={selectedAssetIds.length}
+          availableTags={timelineTagsQuery.data ?? []}
+          onClose={() => setBulkTagMode(null)}
+          onApply={async (tags) => {
+            await bulkUpdateTags.mutateAsync({
+              assets: selectedAssets,
+              tags,
+              mode: bulkTagMode,
+            });
+            setSelectedAssetIds([]);
+            setSelectionAnchorAssetId(null);
           }}
         />
       ) : null}

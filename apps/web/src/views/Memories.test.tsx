@@ -6,6 +6,8 @@ const useMemoryGridPreferences = vi.fn();
 const useTimeline = vi.fn();
 const useTimelineTags = vi.fn();
 const useToggleFavorite = vi.fn();
+const useBulkSetFavorite = vi.fn();
+const useBulkUpdateTags = vi.fn();
 const useUpdateAssetTags = vi.fn();
 const useDeleteTimelineTag = vi.fn();
 
@@ -24,12 +26,40 @@ vi.mock("../hooks/useTimeline", async () => {
 
 vi.mock("../hooks/useAssetActions", () => ({
   useToggleFavorite: () => useToggleFavorite(),
+  useBulkSetFavorite: () => useBulkSetFavorite(),
+  useBulkUpdateTags: () => useBulkUpdateTags(),
   useUpdateAssetTags: () => useUpdateAssetTags(),
   useDeleteTimelineTag: () => useDeleteTimelineTag(),
 }));
 
 vi.mock("../components/VirtualTimelineGrid", () => ({
-  default: () => <div>Timeline Grid</div>,
+  default: ({
+    assets,
+    selectionMode,
+    selectedAssetIds,
+    onToggleSelection,
+  }: {
+    assets: Array<{ id: string }>;
+    selectionMode: boolean;
+    selectedAssetIds: Set<string>;
+    onToggleSelection: (asset: { id: string }, shiftKey: boolean) => void;
+  }) => (
+    <div>
+      <div>Timeline Grid</div>
+      <div data-testid="selected-count">{selectedAssetIds.size}</div>
+      {selectionMode
+        ? assets.map((asset) => (
+            <button
+              key={asset.id}
+              type="button"
+              onClick={(event) => onToggleSelection(asset, event.shiftKey)}
+            >
+              Select {asset.id}
+            </button>
+          ))
+        : null}
+    </div>
+  ),
 }));
 
 vi.mock("../components/Lightbox", () => ({
@@ -40,12 +70,46 @@ vi.mock("../components/memories/TagEditorModal", () => ({
   default: () => <div>Tag Editor</div>,
 }));
 
+vi.mock("../components/memories/BulkSelectionBar", () => ({
+  default: () => <div>Bulk Selection Bar</div>,
+}));
+
+vi.mock("../components/memories/BulkTagModal", () => ({
+  default: () => <div>Bulk Tag Modal</div>,
+}));
+
 describe("Memories", () => {
-  it("updates timeline query state when sort, filter, and tag controls change", async () => {
+  beforeEach(() => {
     useMemoryGridPreferences.mockReturnValue({
       autoplayVideosInGrid: false,
       defaultGridSize: "medium",
     });
+    useTimelineTags.mockReturnValue({
+      data: ["trip", "beach"],
+    });
+    useToggleFavorite.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    });
+    useBulkSetFavorite.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    });
+    useBulkUpdateTags.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    });
+    useUpdateAssetTags.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    });
+    useDeleteTimelineTag.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    });
+  });
+
+  it("updates timeline query state when sort, filter, and tag controls change", async () => {
     useTimeline.mockReturnValue({
       assets: [],
       total: 0,
@@ -60,21 +124,6 @@ describe("Memories", () => {
       hasNextPage: false,
       isFetchingNextPage: false,
       fetchNextPage: vi.fn(),
-    });
-    useTimelineTags.mockReturnValue({
-      data: ["trip", "beach"],
-    });
-    useToggleFavorite.mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    });
-    useUpdateAssetTags.mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    });
-    useDeleteTimelineTag.mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
     });
 
     render(<Memories />);
@@ -143,6 +192,60 @@ describe("Memories", () => {
         dateTo: null,
         search: "sunrise",
       });
+    });
+  });
+
+  it("selects an inclusive range when shift-clicking in selection mode", async () => {
+    useTimeline.mockReturnValue({
+      assets: [
+        {
+          id: "asset-1",
+          taken_at: null,
+          media_type: "image",
+          is_favorite: false,
+          tags: [],
+          has_overlay: false,
+        },
+        {
+          id: "asset-2",
+          taken_at: null,
+          media_type: "image",
+          is_favorite: false,
+          tags: [],
+          has_overlay: false,
+        },
+        {
+          id: "asset-3",
+          taken_at: null,
+          media_type: "image",
+          is_favorite: false,
+          tags: [],
+          has_overlay: false,
+        },
+      ],
+      total: 3,
+      summary: {
+        total_assets: 3,
+        total_photos: 3,
+        total_videos: 0,
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+    });
+
+    render(<Memories />);
+
+    fireEvent.click(screen.getByRole("button", { name: /select/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Select asset-1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select asset-3" }), { shiftKey: true });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-count")).toHaveTextContent("3");
+      expect(screen.getByText("Bulk Selection Bar")).toBeInTheDocument();
     });
   });
 });
