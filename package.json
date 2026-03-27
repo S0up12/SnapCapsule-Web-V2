@@ -1,0 +1,13 @@
+{
+  "name": "snapcapsule-web",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint:py": "python -m ruff check .",
+    "lint:web": "npm --prefix apps/web run lint",
+    "lint": "npm run lint:py && npm run lint:web",
+    "build:web": "npm --prefix apps/web run build",
+    "test:web": "npm --prefix apps/web run test -- --run",
+    "test:backend": "powershell -ExecutionPolicy Bypass -File ./scripts/run-backend-tests.ps1"
+  }
+}

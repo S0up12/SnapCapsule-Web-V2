@@ -6,11 +6,10 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import select
-
 from snapcapsule_core.db import session_scope
 from snapcapsule_core.models import Asset, IngestionJob, MemoryItem
 from snapcapsule_core.models.enums import AssetSource, IngestionSourceKind, MediaType
+from sqlalchemy import select
 
 
 def zip_member_timestamp(member: zipfile.ZipInfo) -> datetime:

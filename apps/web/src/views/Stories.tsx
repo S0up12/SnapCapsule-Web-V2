@@ -244,7 +244,10 @@ export default function Stories() {
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  const collections = storiesQuery.data?.items ?? [];
+  const collections = useMemo(
+    () => storiesQuery.data?.items ?? [],
+    [storiesQuery.data?.items],
+  );
   const activity = storiesQuery.data?.activity ?? {
     spotlight_history_count: 0,
     shared_story_count: 0,

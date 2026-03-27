@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
-
-from apps.api.app.api.schemas import ErrorResponse, ProfileResponse
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.db import SessionLocal
 from snapcapsule_core.services.profile_queries import get_profile_snapshot
+
+from apps.api.app.api.schemas import ErrorResponse, ProfileResponse
 
 router = APIRouter(prefix="/api")
 

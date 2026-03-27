@@ -168,6 +168,7 @@ def process_asset_media(
                 raise JobCanceledError(f"Ingestion job {job_id} was canceled")
             asset.media_type = processor.detect_actual_media_type(stored_media, asset.media_type)
             thumbnail_error: str | None = None
+            plain_thumbnail: Path | None = None
             try:
                 thumbnail = processor.generate_thumbnail(
                     str(asset.id),
@@ -175,6 +176,14 @@ def process_asset_media(
                     asset.media_type,
                     stored_overlay,
                 )
+                if stored_overlay is not None:
+                    plain_thumbnail = processor.generate_thumbnail(
+                        str(asset.id),
+                        stored_media,
+                        asset.media_type,
+                        stored_overlay,
+                        include_overlay=False,
+                    )
             except Exception as exc:
                 thumbnail = None
                 thumbnail_error = summarize_exception_message(exc)
@@ -196,6 +205,8 @@ def process_asset_media(
                 write_bytes += stored_overlay.stat().st_size
             if thumbnail is not None and thumbnail.exists():
                 write_bytes += thumbnail.stat().st_size
+            if plain_thumbnail is not None and plain_thumbnail.exists():
+                write_bytes += plain_thumbnail.stat().st_size
             record_public_job_metrics(
                 job,
                 read_bytes_delta=read_bytes,

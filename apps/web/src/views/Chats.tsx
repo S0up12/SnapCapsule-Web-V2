@@ -337,8 +337,9 @@ function ChatVoiceMessage({
   const [duration, setDuration] = useState(0);
 
   useEffect(() => {
+    const element = audioRef.current;
     return () => {
-      audioRef.current?.pause();
+      element?.pause();
     };
   }, []);
 
@@ -487,7 +488,10 @@ export default function Chats() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const conversationsQuery = useChats({ search, sort, filter });
-  const conversations = conversationsQuery.data?.items ?? [];
+  const conversations = useMemo(
+    () => conversationsQuery.data?.items ?? [],
+    [conversationsQuery.data?.items],
+  );
   const selectedConversation = conversations.find((conversation) => conversation.id === selectedChatId) ?? null;
   const messagesQuery = useChatMessages(selectedChatId);
   const messageScrollRef = useRef<HTMLDivElement | null>(null);

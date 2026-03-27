@@ -7,10 +7,10 @@ from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
-from apps.api.app.api.routes import stories as story_routes
 from snapcapsule_core.models import Asset, IngestionJob, StoryCollection, StoryItem
 from snapcapsule_core.models.enums import AssetSource, IngestionJobStatus, IngestionSourceKind, MediaType, StoryType
+
+from apps.api.app.api.routes import stories as story_routes
 
 
 def _build_story_app(SessionLocal, monkeypatch, settings=None) -> TestClient:

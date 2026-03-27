@@ -9,10 +9,10 @@ from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
-from apps.api.app.api.routes import ingestion as ingestion_routes
 from snapcapsule_core.models import Asset, IngestionJob
 from snapcapsule_core.models.enums import AssetSource, IngestionJobStatus, IngestionSourceKind, MediaType
+
+from apps.api.app.api.routes import ingestion as ingestion_routes
 
 
 def _build_ingestion_app(SessionLocal, session_scope, monkeypatch) -> TestClient:

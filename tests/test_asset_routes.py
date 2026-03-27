@@ -5,10 +5,10 @@ from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
-from apps.api.app.api.routes import assets as asset_routes
 from snapcapsule_core.models import Asset, MemoryCollection, MemoryItem
 from snapcapsule_core.models.enums import AssetSource, MediaType
+
+from apps.api.app.api.routes import assets as asset_routes
 
 
 def _build_asset_app(SessionLocal, session_scope, monkeypatch) -> TestClient:

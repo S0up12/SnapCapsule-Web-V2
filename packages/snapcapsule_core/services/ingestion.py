@@ -16,8 +16,24 @@ from bs4 import BeautifulSoup
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from snapcapsule_core.models import Asset, ChatMessage, ChatThread, IngestionJob, MemoryCollection, MemoryItem, StoryCollection, StoryItem
-from snapcapsule_core.models.enums import AssetSource, ChatMessageSource, IngestionJobStatus, IngestionSourceKind, MediaType, StoryType
+from snapcapsule_core.models import (
+    Asset,
+    ChatMessage,
+    ChatThread,
+    IngestionJob,
+    MemoryCollection,
+    MemoryItem,
+    StoryCollection,
+    StoryItem,
+)
+from snapcapsule_core.models.enums import (
+    AssetSource,
+    ChatMessageSource,
+    IngestionJobStatus,
+    IngestionSourceKind,
+    MediaType,
+    StoryType,
+)
 
 DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 MEDIA_ID_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")

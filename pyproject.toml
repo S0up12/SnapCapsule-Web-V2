@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "beautifulsoup4==4.13.4",
+  "alembic==1.16.5",
   "celery[redis]==5.4.0",
   "ffmpeg-python==0.2.0",
   "fastapi==0.116.1",
@@ -27,6 +28,7 @@ dependencies = [
 dev = [
   "httpx==0.28.1",
   "pytest==8.4.1",
+  "ruff==0.13.2",
 ]
 
 [tool.setuptools]
@@ -37,3 +39,11 @@ where = ["packages"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["F", "I"]

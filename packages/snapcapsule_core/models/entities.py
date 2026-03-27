@@ -3,10 +3,10 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
-    Column,
     JSON,
     BigInteger,
     Boolean,
+    Column,
     DateTime,
     Enum,
     ForeignKey,
@@ -17,7 +17,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from snapcapsule_core.models.base import Base, TimestampMixin
@@ -45,7 +45,9 @@ class Asset(TimestampMixin, Base):
         UniqueConstraint("original_path", name="uq_assets_original_path"),
         Index("ix_assets_taken_at_media_type", "taken_at", "media_type"),
         Index("ix_assets_source_type_taken_at", "source_type", "taken_at"),
+        Index("ix_assets_source_type_media_type_taken_at", "source_type", "media_type", "taken_at"),
         Index("ix_assets_is_favorite", "is_favorite"),
+        Index("ix_assets_tags_gin", "tags", postgresql_using="gin"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -63,7 +65,7 @@ class Asset(TimestampMixin, Base):
     file_size_bytes: Mapped[int | None] = mapped_column(BigInteger)
     taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
     raw_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     chat_messages: Mapped[list["ChatMessage"]] = relationship(
@@ -133,6 +135,7 @@ class ChatMessage(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("dedupe_key", name="uq_chat_messages_dedupe_key"),
         Index("ix_chat_messages_thread_sent_at", "thread_id", "sent_at"),
+        Index("ix_chat_messages_sent_at", "sent_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -173,6 +176,7 @@ class MemoryItem(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("collection_id", "asset_id", name="uq_memory_items_collection_asset"),
         Index("ix_memory_items_taken_at", "taken_at"),
+        Index("ix_memory_items_asset_taken_at_position", "asset_id", "taken_at", "position"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -214,6 +218,7 @@ class StoryItem(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("collection_id", "asset_id", name="uq_story_items_collection_asset"),
         Index("ix_story_items_posted_at", "posted_at"),
+        Index("ix_story_items_collection_position", "collection_id", "position"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

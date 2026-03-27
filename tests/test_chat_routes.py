@@ -5,10 +5,10 @@ from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
-from apps.api.app.api.routes import chats as chat_routes
 from snapcapsule_core.models import Asset, ChatMessage, ChatThread
 from snapcapsule_core.models.enums import AssetSource, ChatMessageSource, MediaType
+
+from apps.api.app.api.routes import chats as chat_routes
 
 
 def _build_chat_app(SessionLocal, monkeypatch) -> TestClient:

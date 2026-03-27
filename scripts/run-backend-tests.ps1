@@ -7,12 +7,27 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Push-Location $repoRoot
 
 try {
-  & docker compose exec backend python -m pip install -e ".[dev]"
+  & docker compose up -d db redis
   if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
   }
 
-  $command = @("compose", "exec", "backend", "python", "-m", "pytest")
+  & docker compose build backend
+  if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+  }
+
+  & docker compose run --rm backend python -m pip install -e ".[dev]"
+  if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+  }
+
+  & docker compose run --rm backend python -m alembic upgrade head
+  if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+  }
+
+  $command = @("compose", "run", "--rm", "backend", "python", "-m", "pytest")
   if ($PytestArgs.Count -gt 0) {
     $command += $PytestArgs
   } else {

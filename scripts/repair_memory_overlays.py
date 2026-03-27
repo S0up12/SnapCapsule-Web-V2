@@ -5,14 +5,13 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import select
-
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.db import SessionLocal
 from snapcapsule_core.models import Asset
 from snapcapsule_core.models.enums import AssetSource
 from snapcapsule_core.services.ingestion import IngestionService
 from snapcapsule_core.services.media_processor import MediaProcessor
+from sqlalchemy import select
 
 
 @dataclass(slots=True)

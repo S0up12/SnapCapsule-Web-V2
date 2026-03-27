@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import argparse
 
-from sqlalchemy import select
-
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.db import SessionLocal
 from snapcapsule_core.models import Asset
 from snapcapsule_core.models.enums import MediaType
 from snapcapsule_core.services.media_processor import MediaProcessor
+from sqlalchemy import select
 
 
 def main() -> int:

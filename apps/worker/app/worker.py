@@ -3,15 +3,14 @@ import uuid
 from pathlib import Path
 
 from celery.signals import worker_ready
-
 from snapcapsule_core.db import session_scope
 from snapcapsule_core.models import IngestionJob
 from snapcapsule_core.models.enums import IngestionJobStatus
 from snapcapsule_core.queue import celery_app
 from snapcapsule_core.services.ingestion_jobs import ACTIVE_INGESTION_JOB_STATUSES
-from snapcapsule_core.tasks.ingestion import extract_and_parse
 from snapcapsule_core.tasks import ingestion as _ingestion  # noqa: F401
 from snapcapsule_core.tasks import media as _media  # noqa: F401
+from snapcapsule_core.tasks.ingestion import extract_and_parse
 
 logger = logging.getLogger(__name__)
 

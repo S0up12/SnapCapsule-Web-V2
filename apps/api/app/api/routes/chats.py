@@ -3,10 +3,15 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, HTTPException, Query, status
+from snapcapsule_core.db import SessionLocal
+from snapcapsule_core.services.chat_queries import (
+    ChatFilters,
+    get_chat_thread,
+    list_chat_threads,
+    list_grouped_chat_messages,
+)
 
 from apps.api.app.api.schemas import ChatListResponse, ChatMessagesResponse, ErrorResponse
-from snapcapsule_core.db import SessionLocal
-from snapcapsule_core.services.chat_queries import ChatFilters, get_chat_thread, list_chat_threads, list_grouped_chat_messages
 
 router = APIRouter(prefix="/api")
 

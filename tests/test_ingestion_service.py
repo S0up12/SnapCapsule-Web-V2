@@ -3,11 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from sqlalchemy import select
-
 from snapcapsule_core.models import Asset, MemoryCollection, MemoryItem
 from snapcapsule_core.models.enums import AssetSource, MediaType
 from snapcapsule_core.services.ingestion import IndexedAsset, IndexedAssetState, IngestionService
+from sqlalchemy import select
 
 
 def test_parse_memories_deduplicates_repeated_indexed_assets(db_session):

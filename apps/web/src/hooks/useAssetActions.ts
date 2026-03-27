@@ -109,12 +109,11 @@ async function deleteTimelineTag(tag: string): Promise<TagDeleteResponse> {
   return (await response.json()) as TagDeleteResponse;
 }
 
-function invalidateMemoryQueries(queryClient: ReturnType<typeof useQueryClient>) {
+function invalidateTimelineQueries(queryClient: ReturnType<typeof useQueryClient>, { includeTags }: { includeTags: boolean }) {
   void queryClient.invalidateQueries({ queryKey: ["timeline"] });
-  void queryClient.invalidateQueries({ queryKey: ["timeline-tags"] });
-  void queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-  void queryClient.invalidateQueries({ queryKey: ["chat-messages"] });
-  void queryClient.invalidateQueries({ queryKey: ["stories"] });
+  if (includeTags) {
+    void queryClient.invalidateQueries({ queryKey: ["timeline-tags"] });
+  }
 }
 
 function applyAssetMutation(queryClient: ReturnType<typeof useQueryClient>, nextAsset: AssetMutationResponse) {
@@ -254,7 +253,7 @@ export function useToggleFavorite() {
     mutationFn: postFavorite,
     onSuccess: (updated) => {
       applyAssetMutation(queryClient, updated);
-      invalidateMemoryQueries(queryClient);
+      invalidateTimelineQueries(queryClient, { includeTags: false });
     },
   });
 }
@@ -266,7 +265,7 @@ export function useUpdateAssetTags() {
     mutationFn: ({ assetId, tags }: { assetId: string; tags: string[] }) => postTags(assetId, tags),
     onSuccess: (updated) => {
       applyAssetMutation(queryClient, updated);
-      invalidateMemoryQueries(queryClient);
+      invalidateTimelineQueries(queryClient, { includeTags: true });
     },
   });
 }
@@ -278,7 +277,7 @@ export function useDeleteTimelineTag() {
     mutationFn: deleteTimelineTag,
     onSuccess: (deleted) => {
       removeDeletedTagFromCaches(queryClient, deleted.tag);
-      invalidateMemoryQueries(queryClient);
+      invalidateTimelineQueries(queryClient, { includeTags: true });
     },
   });
 }

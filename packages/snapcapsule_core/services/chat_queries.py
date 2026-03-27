@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from snapcapsule_core.models import Asset, ChatMessage, ChatThread, chat_message_assets
+from snapcapsule_core.models import ChatMessage, ChatThread, chat_message_assets
 from snapcapsule_core.models.enums import MediaType
 
 

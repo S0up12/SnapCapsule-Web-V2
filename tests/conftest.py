@@ -10,11 +10,10 @@ from urllib.parse import SplitResult, urlsplit, urlunsplit
 import psycopg
 import pytest
 from psycopg import sql
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-
 from snapcapsule_core.models import Asset, Base, MemoryCollection, MemoryItem
 from snapcapsule_core.models.enums import AssetSource, MediaType
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 
 def _derive_test_database_url() -> str:

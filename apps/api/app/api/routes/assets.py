@@ -9,16 +9,6 @@ from typing import Iterator
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
-
-from apps.api.app.api.schemas import (
-    AssetMutationResponse,
-    AssetTagsUpdateRequest,
-    DashboardStatsResponse,
-    ErrorResponse,
-    TagDeleteResponse,
-    TimelinePageResponse,
-    TimelineTagsResponse,
-)
 from snapcapsule_core.db import SessionLocal, session_scope
 from snapcapsule_core.models.enums import MediaType
 from snapcapsule_core.services.asset_queries import (
@@ -33,6 +23,16 @@ from snapcapsule_core.services.asset_queries import (
     update_asset_tags,
 )
 from snapcapsule_core.services.media_processor import MediaProcessor
+
+from apps.api.app.api.schemas import (
+    AssetMutationResponse,
+    AssetTagsUpdateRequest,
+    DashboardStatsResponse,
+    ErrorResponse,
+    TagDeleteResponse,
+    TimelinePageResponse,
+    TimelineTagsResponse,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -325,20 +325,8 @@ def _resolve_thumbnail_path(asset, *, include_overlay: bool) -> Path:
     if include_overlay or not asset.overlay_path:
         return _existing_file(asset.thumbnail_path, "Thumbnail file is missing.")
 
-    original_path = _existing_file(asset.original_path, "Original media file is missing.")
     processor = MediaProcessor()
     plain_thumbnail_path = processor.thumbnail_destination_path(str(asset.id), include_overlay=False)
-    if not plain_thumbnail_path.exists():
-        generated_path = processor.generate_thumbnail(
-            str(asset.id),
-            original_path,
-            asset.media_type,
-            None,
-            include_overlay=False,
-        )
-        if generated_path is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thumbnail not available.")
-
     return _existing_file(str(plain_thumbnail_path), "Thumbnail file is missing.")
 
 

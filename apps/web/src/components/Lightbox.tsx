@@ -22,6 +22,7 @@ export default function Lightbox({
   onEditTags,
 }: LightboxProps) {
   const asset = assets[currentIndex] ?? null;
+  const isVideo = asset?.media_type === "video";
   const showOverlays = useShowMemoryOverlays();
   const [mediaFailed, setMediaFailed] = useState(false);
   const [overlayFailed, setOverlayFailed] = useState(false);
@@ -74,15 +75,6 @@ export default function Lightbox({
     setMediaBox(null);
   }, [asset?.id, asset?.media_type]);
 
-  if (!asset) {
-    return null;
-  }
-
-  const date = formatTimelineDate(asset.taken_at);
-  const mediaUrl = getOriginalUrl(asset.id, asset.has_overlay ? 1 : 0);
-  const overlayUrl = getOverlayUrl(asset.id, asset.has_overlay ? 1 : 0);
-  const isVideo = asset.media_type === "video";
-
   function fitMediaBox(width: number, height: number) {
     const maxWidth = Math.min(window.innerWidth - 112, 1400);
     const maxHeight = Math.max(240, window.innerHeight - 220);
@@ -109,7 +101,7 @@ export default function Lightbox({
   });
 
   useEffect(() => {
-    if (!asset) {
+    if (asset === null) {
       return;
     }
 
@@ -125,7 +117,15 @@ export default function Lightbox({
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", handleResize);
     };
-  }, [asset?.id, asset?.media_type, measureActiveMedia]);
+  }, [asset, measureActiveMedia]);
+
+  if (!asset) {
+    return null;
+  }
+
+  const date = formatTimelineDate(asset.taken_at);
+  const mediaUrl = getOriginalUrl(asset.id, asset.has_overlay ? 1 : 0);
+  const overlayUrl = getOverlayUrl(asset.id, asset.has_overlay ? 1 : 0);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 p-3 sm:p-5" onClick={onClose}>

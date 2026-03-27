@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from sqlalchemy import select
-
 from snapcapsule_core.models import MemoryItem
 from snapcapsule_core.models.enums import AssetSource, MediaType
 from snapcapsule_core.services.asset_queries import (
@@ -14,6 +12,7 @@ from snapcapsule_core.services.asset_queries import (
     list_timeline_assets,
     update_asset_tags,
 )
+from sqlalchemy import select
 
 
 def test_list_timeline_assets_prefers_memory_item_chronology_over_asset_fallback(db_session, make_asset):

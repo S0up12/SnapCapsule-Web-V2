@@ -5,11 +5,11 @@ from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
-from apps.api.app.api.routes import profile as profile_routes
 from snapcapsule_core.models import ProfileSnapshot
 from snapcapsule_core.services import profile_queries
 from snapcapsule_core.services.profile_queries import build_profile_snapshot
+
+from apps.api.app.api.routes import profile as profile_routes
 
 
 def _build_profile_app(SessionLocal, monkeypatch, settings) -> TestClient:

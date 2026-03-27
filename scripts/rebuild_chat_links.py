@@ -4,14 +4,13 @@ import argparse
 from collections.abc import Iterable
 from pathlib import Path
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.db import SessionLocal, session_scope
 from snapcapsule_core.models import Asset, ChatMessage, ChatThread
 from snapcapsule_core.models.enums import AssetSource, ChatMessageSource
 from snapcapsule_core.services.ingestion import IndexedAsset, IndexedAssetState, IngestionService
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 
 def build_chat_asset_state(service: IngestionService) -> IndexedAssetState:

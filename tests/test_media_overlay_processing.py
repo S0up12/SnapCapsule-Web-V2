@@ -5,11 +5,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from PIL import Image, ImageChops
-
-from apps.api.app.api.routes import assets as asset_routes
 from snapcapsule_core.config import Settings
 from snapcapsule_core.models.enums import MediaType
 from snapcapsule_core.services.media_processor import MediaProcessor
+
+from apps.api.app.api.routes import assets as asset_routes
 
 
 def _make_settings(tmp_path: Path) -> Settings:
@@ -108,9 +108,8 @@ def test_generate_video_thumbnail_composites_overlay_on_extracted_frame(tmp_path
     _assert_images_differ(thumbnail_path, plain_thumbnail_path)
 
 
-def test_resolve_thumbnail_path_generates_plain_thumbnail_when_overlay_disabled(tmp_path: Path, monkeypatch):
-    settings = _make_settings(tmp_path)
-    processor = MediaProcessor(settings)
+def test_resolve_thumbnail_path_uses_existing_plain_thumbnail_when_overlay_disabled(tmp_path: Path, monkeypatch):
+    processor = MediaProcessor(_make_settings(tmp_path))
     asset_id = uuid.uuid4()
     media_path = tmp_path / "source" / "memory.jpg"
     overlay_path = tmp_path / "source" / "memory_overlay.png"
@@ -124,6 +123,13 @@ def test_resolve_thumbnail_path_generates_plain_thumbnail_when_overlay_disabled(
         overlay_path,
         include_overlay=True,
     )
+    plain_thumbnail = processor.generate_thumbnail(
+        str(asset_id),
+        media_path,
+        MediaType.IMAGE,
+        overlay_path,
+        include_overlay=False,
+    )
 
     asset = SimpleNamespace(
         id=asset_id,
@@ -133,10 +139,18 @@ def test_resolve_thumbnail_path_generates_plain_thumbnail_when_overlay_disabled(
         thumbnail_path=str(overlay_thumbnail),
     )
 
-    monkeypatch.setattr(asset_routes, "MediaProcessor", lambda: processor)
+    class NoGenerateMediaProcessor:
+        def thumbnail_destination_path(self, asset_id: str, *, include_overlay: bool = True) -> Path:
+            return processor.thumbnail_destination_path(asset_id, include_overlay=include_overlay)
 
-    plain_thumbnail = asset_routes._resolve_thumbnail_path(asset, include_overlay=False)
+        def generate_thumbnail(self, *_args: object, **_kwargs: object) -> Path:
+            raise AssertionError("The API should not generate thumbnails during request handling.")
 
-    assert plain_thumbnail.name.endswith("_plain.jpg")
-    assert plain_thumbnail.exists()
-    _assert_images_differ(Path(asset.thumbnail_path), plain_thumbnail)
+    monkeypatch.setattr(asset_routes, "MediaProcessor", NoGenerateMediaProcessor)
+
+    resolved_path = asset_routes._resolve_thumbnail_path(asset, include_overlay=False)
+
+    assert plain_thumbnail is not None
+    assert resolved_path.name.endswith("_plain.jpg")
+    assert resolved_path.exists()
+    _assert_images_differ(Path(asset.thumbnail_path), resolved_path)

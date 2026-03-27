@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 
-from sqlalchemy import Select, case, cast, desc, func, select
+from sqlalchemy import Select, case, cast, desc, func, select, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
@@ -94,6 +94,7 @@ def _memory_timeline_subquery():
 
 
 def _base_asset_filters(filters: TimelineFilters, timeline_taken_at):
+    tags_jsonb = cast(Asset.tags, JSONB)
     clauses = [
         Asset.source_type == AssetSource.MEMORY,
         Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)),
@@ -106,7 +107,7 @@ def _base_asset_filters(filters: TimelineFilters, timeline_taken_at):
     if filters.favorite_only:
         clauses.append(Asset.is_favorite.is_(True))
     for tag in filters.tags:
-        clauses.append(cast(Asset.tags, JSONB).contains([tag]))
+        clauses.append(tags_jsonb.contains([tag]))
     if filters.date_from is not None:
         clauses.append(timeline_taken_at >= datetime.combine(filters.date_from, time.min, tzinfo=timezone.utc))
     if filters.date_to is not None:
@@ -178,21 +179,25 @@ def get_timeline_summary(session: Session, filters: TimelineFilters) -> Timeline
 
 def list_available_tags(session: Session) -> list[str]:
     rows = session.execute(
-        select(Asset.tags).where(
-            Asset.source_type == AssetSource.MEMORY,
-            Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)),
-            Asset.tags.is_not(None),
-        )
+        text(
+            """
+            SELECT MIN(tag_values.tag) AS tag
+            FROM assets
+            CROSS JOIN LATERAL jsonb_array_elements_text(CAST(tags AS jsonb)) AS tag_values(tag)
+            WHERE source_type = :source_type
+              AND media_type IN (:media_type_image, :media_type_video)
+              AND tags IS NOT NULL
+            GROUP BY lower(tag_values.tag)
+            ORDER BY lower(tag_values.tag)
+            """
+        ),
+        {
+            "source_type": AssetSource.MEMORY.name,
+            "media_type_image": MediaType.IMAGE.name,
+            "media_type_video": MediaType.VIDEO.name,
+        },
     ).scalars()
-
-    tag_map: dict[str, str] = {}
-    for tags in rows:
-        for tag in tags or []:
-            normalized = str(tag).strip()
-            if normalized:
-                tag_map.setdefault(normalized.lower(), normalized)
-
-    return sorted(tag_map.values(), key=str.lower)
+    return [tag for tag in rows if tag]
 
 
 def get_asset_file_record(session: Session, asset_id: uuid.UUID) -> AssetFileRecord | None:
@@ -254,25 +259,33 @@ def delete_asset_tag(session: Session, tag: str) -> TagDeleteRecord:
     normalized_key = normalized_target.lower()
     if not normalized_target:
         return TagDeleteRecord(tag="", affected_assets=0)
-
-    assets = session.execute(
-        select(Asset).where(
-            Asset.source_type == AssetSource.MEMORY,
-            Asset.media_type.in_((MediaType.IMAGE, MediaType.VIDEO)),
-            Asset.tags.is_not(None),
-        )
-    ).scalars()
-
-    affected_assets = 0
-    for asset in assets:
-        current_tags = list(asset.tags or ())
-        next_tags = [value for value in current_tags if str(value).strip().lower() != normalized_key]
-        if len(next_tags) == len(current_tags):
-            continue
-
-        asset.tags = next_tags
-        affected_assets += 1
-
+    result = session.execute(
+        text(
+            """
+            UPDATE assets
+            SET tags = (
+                SELECT COALESCE(jsonb_agg(tag_values.tag), '[]'::jsonb)
+                FROM jsonb_array_elements_text(CAST(assets.tags AS jsonb)) AS tag_values(tag)
+                WHERE lower(tag_values.tag) <> :normalized_key
+            )
+            WHERE source_type = :source_type
+              AND media_type IN (:media_type_image, :media_type_video)
+              AND tags IS NOT NULL
+              AND EXISTS (
+                  SELECT 1
+                  FROM jsonb_array_elements_text(CAST(assets.tags AS jsonb)) AS tag_values(tag)
+                  WHERE lower(tag_values.tag) = :normalized_key
+              )
+            """
+        ),
+        {
+            "normalized_key": normalized_key,
+            "source_type": AssetSource.MEMORY.name,
+            "media_type_image": MediaType.IMAGE.name,
+            "media_type_video": MediaType.VIDEO.name,
+        },
+    )
+    affected_assets = int(result.rowcount or 0)
     session.flush()
     return TagDeleteRecord(tag=normalized_target, affected_assets=affected_assets)
 

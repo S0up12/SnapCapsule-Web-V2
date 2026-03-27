@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from snapcapsule_core.config import get_settings
+from snapcapsule_core.db import init_database
 
 from apps.api.app.api.routes.assets import router as assets_router
 from apps.api.app.api.routes.chats import router as chats_router
@@ -11,8 +13,6 @@ from apps.api.app.api.routes.profile import router as profile_router
 from apps.api.app.api.routes.settings import router as settings_router
 from apps.api.app.api.routes.stories import router as stories_router
 from apps.api.app.api.schemas import RootResponse
-from snapcapsule_core.config import get_settings
-from snapcapsule_core.db import init_database
 
 settings = get_settings()
 

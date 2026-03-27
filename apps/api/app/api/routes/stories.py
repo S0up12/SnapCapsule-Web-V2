@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from apps.api.app.api.schemas import StoryCollectionsResponse
+from fastapi import APIRouter
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.db import SessionLocal
 from snapcapsule_core.services.story_queries import build_story_activity_summary, list_story_collections
 
-from fastapi import APIRouter
+from apps.api.app.api.schemas import StoryCollectionsResponse
 
 router = APIRouter(prefix="/api")
 

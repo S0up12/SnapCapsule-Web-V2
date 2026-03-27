@@ -4,10 +4,11 @@ import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
-from apps.worker.app import worker as worker_module
 from snapcapsule_core.models import IngestionJob
 from snapcapsule_core.models.enums import IngestionJobStatus, IngestionSourceKind
 from snapcapsule_core.tasks import ingestion as ingestion_tasks
+
+from apps.worker.app import worker as worker_module
 
 
 def test_resume_interrupted_ingestion_jobs_requeues_existing_sources_and_fails_missing_ones(

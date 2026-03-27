@@ -5,7 +5,6 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from snapcapsule_core.config import get_settings
-from snapcapsule_core.models import Base
 
 settings = get_settings()
 
@@ -19,18 +18,11 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expi
 
 
 def init_database() -> None:
-    Base.metadata.create_all(bind=engine)
     with engine.begin() as connection:
+        connection.execute(text("SELECT 1"))
         inspector = inspect(connection)
-        columns = {column["name"] for column in inspector.get_columns("assets")}
-
-        if "is_favorite" not in columns:
-            connection.execute(text("ALTER TABLE assets ADD COLUMN is_favorite BOOLEAN NOT NULL DEFAULT FALSE"))
-        if "tags" not in columns:
-            connection.execute(text("ALTER TABLE assets ADD COLUMN tags JSON NOT NULL DEFAULT '[]'::json"))
-
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_assets_is_favorite ON assets (is_favorite)"))
-        connection.execute(text("ALTER TYPE ingestion_job_status ADD VALUE IF NOT EXISTS 'canceled'"))
+        if not inspector.has_table("alembic_version"):
+            raise RuntimeError("Database schema is not initialized. Run `python -m alembic upgrade head` before starting the API.")
 
 
 def get_db_session() -> Generator[Session, None, None]:

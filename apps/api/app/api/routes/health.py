@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
+from snapcapsule_core.db import SessionLocal
+from snapcapsule_core.queue import get_redis_client
 from sqlalchemy import text
 
 from apps.api.app.api.schemas import HealthResponse
-from snapcapsule_core.db import SessionLocal
-from snapcapsule_core.queue import get_redis_client
 
 router = APIRouter()
 

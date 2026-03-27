@@ -69,13 +69,25 @@ That keeps media serving simple and fast: the API reads metadata from Postgres, 
 
 1. Copy `.env.example` to `.env`.
 2. Adjust the host storage paths if needed.
-3. Start the full development stack:
+3. Start the database and Redis dependencies:
+
+```bash
+docker compose up -d db redis
+```
+
+4. Run the database migrations in a one-off backend container:
+
+```bash
+docker compose run --rm backend python -m alembic upgrade head
+```
+
+5. Start the application stack:
 
 ```bash
 docker compose up --build
 ```
 
-4. Open the apps:
+6. Open the apps:
 
 ```bash
 http://localhost:3000
