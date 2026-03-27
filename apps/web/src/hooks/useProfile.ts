@@ -16,6 +16,33 @@ export type ProfileSecurityDownload = {
   value: string | null;
 };
 
+export type ProfileSubscriptionRecord = {
+  purchase_date: string | null;
+  purchase_type: string | null;
+  provider: string | null;
+  price: number | null;
+  ends_at: string | null;
+  is_active: boolean;
+};
+
+export type ProfileCallRecord = {
+  date: string | null;
+  direction: string | null;
+  call_type: string | null;
+  participants: number | null;
+  result: string | null;
+  city: string | null;
+  country: string | null;
+  duration_seconds: number | null;
+  network: string | null;
+};
+
+export type ProfileSupportRecord = {
+  date: string | null;
+  subject: string | null;
+  message: string | null;
+};
+
 export type ProfileData = {
   generated_at: string | null;
   account: {
@@ -98,6 +125,20 @@ export type ProfileData = {
     download_reports: ProfileSecurityDownload[];
     connected_apps: ProfileSecurityDownload[];
     terms_acceptances: ProfileEventLabel[];
+  };
+  subscriptions: {
+    snapchat_plus_active: boolean;
+    purchase_count: number;
+    latest_purchase: ProfileSubscriptionRecord | null;
+    recent_purchases: ProfileSubscriptionRecord[];
+  };
+  communications: {
+    outgoing_calls_count: number;
+    incoming_calls_count: number;
+    completed_calls_count: number;
+    latest_call_at: string | null;
+    recent_calls: ProfileCallRecord[];
+    support_notes: ProfileSupportRecord[];
   };
   history: {
     display_name_changes: ProfileEventValue[];

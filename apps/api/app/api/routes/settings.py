@@ -24,6 +24,9 @@ def _serialize_settings() -> AppSettingsResponse:
         autoplay_videos_in_grid=stored.autoplay_videos_in_grid,
         show_memory_overlays=stored.show_memory_overlays,
         default_grid_size=stored.default_grid_size,
+        show_stories_workspace=stored.show_stories_workspace,
+        show_story_activity=stored.show_story_activity,
+        show_snapchat_plus_profile_card=stored.show_snapchat_plus_profile_card,
         enable_debug_logging=stored.enable_debug_logging,
         storage={
             "raw_media_dir": settings.raw_media_dir,

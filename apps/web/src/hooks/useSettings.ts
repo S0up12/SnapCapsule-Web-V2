@@ -5,6 +5,9 @@ export type AppSettings = {
   autoplay_videos_in_grid: boolean;
   show_memory_overlays: boolean;
   default_grid_size: "small" | "medium" | "large";
+  show_stories_workspace: boolean;
+  show_story_activity: boolean;
+  show_snapchat_plus_profile_card: boolean;
   enable_debug_logging: boolean;
   storage: {
     raw_media_dir: string;
@@ -15,7 +18,14 @@ export type AppSettings = {
 export type AppSettingsUpdate = Partial<
   Pick<
     AppSettings,
-    "dark_mode" | "autoplay_videos_in_grid" | "show_memory_overlays" | "default_grid_size" | "enable_debug_logging"
+    | "dark_mode"
+    | "autoplay_videos_in_grid"
+    | "show_memory_overlays"
+    | "default_grid_size"
+    | "show_stories_workspace"
+    | "show_story_activity"
+    | "show_snapchat_plus_profile_card"
+    | "enable_debug_logging"
   >
 >;
 

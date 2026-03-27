@@ -2,7 +2,7 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
-import { SHOW_STORIES_WORKSPACE } from "../features";
+import { useStoriesWorkspaceVisibility } from "../features";
 import IngestionStatusBanner from "./IngestionStatusBanner";
 import Sidebar from "./Sidebar";
 
@@ -10,6 +10,7 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
+  const storiesWorkspace = useStoriesWorkspaceVisibility();
   const isContainedScrollRoute = location.pathname === "/chats" || location.pathname === "/memories";
 
   const routeMeta: Record<string, { eyebrow: string; title: string }> = {
@@ -35,7 +36,7 @@ export default function Layout() {
     },
   };
 
-  if (SHOW_STORIES_WORKSPACE) {
+  if (storiesWorkspace.isVisible) {
     routeMeta["/stories"] = {
       eyebrow: "Archive",
       title: "Stories",

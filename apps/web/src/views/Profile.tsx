@@ -12,6 +12,7 @@ import {
 
 import SettingsCard from "../components/settings/SettingsCard";
 import { useProfile, type ProfileData, type ProfileEventLabel, type ProfileEventValue, type ProfileSecurityDownload } from "../hooks/useProfile";
+import { useSettings } from "../hooks/useSettings";
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -41,6 +42,17 @@ function formatDateTime(value: string | null) {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat().format(value);
+}
+
+function formatDecimal(value: number | null) {
+  if (value === null) {
+    return "Unknown";
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 function initialsFromProfile(profile: ProfileData) {
@@ -189,8 +201,172 @@ function PlaceList({
   );
 }
 
+function SubscriptionList({
+  items,
+}: {
+  items: ProfileData["subscriptions"]["recent_purchases"];
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm text-slate-500 dark:text-slate-400">No subscription purchases in this export.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item, index) => (
+        <div
+          key={`${item.purchase_date ?? "unknown"}-${item.provider ?? "provider"}-${index}`}
+          className="rounded-[1.2rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {item.purchase_type || "Unknown purchase"}
+              </p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                {[item.provider, item.price === null ? null : formatDecimal(item.price)]
+                  .filter(Boolean)
+                  .join(" · ") || "Purchase details unavailable"}
+              </p>
+            </div>
+            <div className="text-right text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+              <p>{formatDateTime(item.purchase_date)}</p>
+              <p className="mt-1 normal-case tracking-normal">{item.is_active ? "Active" : "Inactive"}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CallList({
+  items,
+}: {
+  items: ProfileData["communications"]["recent_calls"];
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm text-slate-500 dark:text-slate-400">No call history in this export.</p>;
+  }
+
+  return (
+    <div className="max-h-72 space-y-3 overflow-y-auto pr-2">
+      {items.map((item, index) => (
+        <div
+          key={`${item.date ?? "unknown"}-${item.direction ?? "direction"}-${index}`}
+          className="rounded-[1.2rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {[item.direction, item.call_type].filter(Boolean).join(" · ") || "Unknown call"}
+              </p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                {[
+                  item.result,
+                  item.participants === null ? null : `${item.participants} people`,
+                  item.duration_seconds === null ? null : `${formatNumber(item.duration_seconds)} sec`,
+                  item.network,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "No extra details"}
+              </p>
+              {(item.city || item.country) ? (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {[item.city, item.country].filter(Boolean).join(", ")}
+                </p>
+              ) : null}
+            </div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+              {formatDateTime(item.date)}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SupportNoteList({
+  items,
+}: {
+  items: ProfileData["communications"]["support_notes"];
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm text-slate-500 dark:text-slate-400">No support notes in this export.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item, index) => (
+        <div
+          key={`${item.date ?? "unknown"}-${item.subject ?? "subject"}-${index}`}
+          className="rounded-[1.2rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.subject || "Support note"}</p>
+              {item.message ? <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{item.message}</p> : null}
+            </div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+              {formatDateTime(item.date)}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SnapchatPlusCard({ profile }: { profile: ProfileData }) {
+  return (
+    <SettingsCard
+      title="Snapchat+"
+      description="Subscription purchase data imported from Snapchat+ export files."
+    >
+      <div className="rounded-[1.4rem] border border-amber-300/45 bg-[linear-gradient(135deg,_rgba(254,249,195,0.92),_rgba(253,224,71,0.18))] px-4 py-4 shadow-[0_18px_36px_rgba(161,98,7,0.12)] dark:border-amber-300/25 dark:bg-[linear-gradient(135deg,_rgba(120,53,15,0.22),_rgba(251,191,36,0.08))]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800/80 dark:text-amber-200/75">Snapchat+ Import</p>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+              {profile.subscriptions.latest_purchase?.purchase_type || "Subscription"}
+            </p>
+          </div>
+          <span className="rounded-full border border-amber-400/40 bg-white/75 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-900 dark:border-amber-300/20 dark:bg-white/[0.06] dark:text-amber-100">
+            {profile.subscriptions.snapchat_plus_active ? "Active" : "Inactive"}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <InfoList
+          items={[
+            { label: "Purchases", value: String(profile.subscriptions.purchase_count) },
+            { label: "Latest Provider", value: profile.subscriptions.latest_purchase?.provider ?? null },
+            {
+              label: "Latest Price",
+              value:
+                profile.subscriptions.latest_purchase?.price === null || profile.subscriptions.latest_purchase?.price === undefined
+                  ? null
+                  : formatDecimal(profile.subscriptions.latest_purchase.price),
+            },
+            { label: "Latest End", value: formatDateTime(profile.subscriptions.latest_purchase?.ends_at ?? null) },
+          ]}
+        />
+      </div>
+
+      <div className="mt-5">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Recent Purchases</h3>
+        <div className="mt-3">
+          <SubscriptionList items={profile.subscriptions.recent_purchases} />
+        </div>
+      </div>
+    </SettingsCard>
+  );
+}
+
 export default function Profile() {
   const profileQuery = useProfile();
+  const settingsQuery = useSettings();
 
   if (profileQuery.isLoading) {
     return (
@@ -216,6 +392,13 @@ export default function Profile() {
   }
 
   const profile = profileQuery.data;
+  const showSnapchatPlusCard =
+    (settingsQuery.data?.show_snapchat_plus_profile_card ?? true) && profile.subscriptions.purchase_count > 0;
+  const showCommunicationsCard =
+    profile.communications.outgoing_calls_count > 0 ||
+    profile.communications.incoming_calls_count > 0 ||
+    profile.communications.completed_calls_count > 0 ||
+    profile.communications.support_notes.length > 0;
 
   return (
     <section className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
@@ -438,6 +621,8 @@ export default function Profile() {
               ]}
             />
           </SettingsCard>
+
+          {showSnapchatPlusCard ? <SnapchatPlusCard profile={profile} /> : null}
         </div>
 
         <div className="space-y-6">
@@ -504,6 +689,31 @@ export default function Profile() {
               </div>
             </div>
           </SettingsCard>
+
+          {showCommunicationsCard ? (
+            <SettingsCard title="Calls & Support">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <StatCard label="Outgoing" value={profile.communications.outgoing_calls_count} icon={LogIn} />
+                <StatCard label="Incoming" value={profile.communications.incoming_calls_count} icon={Smartphone} />
+                <StatCard label="Completed" value={profile.communications.completed_calls_count} icon={BadgeCheck} />
+              </div>
+              <div className="mt-5">
+                <InfoList items={[{ label: "Latest Call", value: formatDateTime(profile.communications.latest_call_at) }]} />
+              </div>
+              <div className="mt-5">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Recent Calls</h3>
+                <div className="mt-3">
+                  <CallList items={profile.communications.recent_calls} />
+                </div>
+              </div>
+              <div className="mt-5">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Support Notes</h3>
+                <div className="mt-3">
+                  <SupportNoteList items={profile.communications.support_notes} />
+                </div>
+              </div>
+            </SettingsCard>
+          ) : null}
 
           <SettingsCard title="Account History">
             <div className="space-y-5">

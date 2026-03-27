@@ -19,10 +19,26 @@ export type StoryCollection = {
   items: StoryAsset[];
 };
 
+export type StoryActivityEntry = {
+  story_date: string | null;
+  story_url: string | null;
+  action_type: string | null;
+  view_duration_seconds: number | null;
+};
+
+export type StoriesActivitySummary = {
+  spotlight_history_count: number;
+  shared_story_count: number;
+  latest_story_date: string | null;
+  spotlight_history: StoryActivityEntry[];
+  shared_story_activity: StoryActivityEntry[];
+};
+
 type StoriesResponse = {
   items: StoryCollection[];
   total_collections: number;
   total_story_items: number;
+  activity: StoriesActivitySummary;
 };
 
 async function fetchStories(): Promise<StoriesResponse> {

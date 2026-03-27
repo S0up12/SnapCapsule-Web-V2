@@ -12,6 +12,9 @@ def test_settings_store_normalizes_string_booleans(tmp_path):
           "autoplay_videos_in_grid": "true",
           "show_memory_overlays": "0",
           "default_grid_size": "LARGE",
+          "show_stories_workspace": "yes",
+          "show_story_activity": "false",
+          "show_snapchat_plus_profile_card": "1",
           "enable_debug_logging": "yes"
         }
         """.strip(),
@@ -24,4 +27,7 @@ def test_settings_store_normalizes_string_booleans(tmp_path):
     assert stored.autoplay_videos_in_grid is True
     assert stored.show_memory_overlays is False
     assert stored.default_grid_size == "large"
+    assert stored.show_stories_workspace is True
+    assert stored.show_story_activity is False
+    assert stored.show_snapchat_plus_profile_card is True
     assert stored.enable_debug_logging is True

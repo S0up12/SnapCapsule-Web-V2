@@ -248,6 +248,49 @@ class ProfileSecuritySummary(BaseModel):
     terms_acceptances: list[ProfileEventLabel] = Field(..., description="Recent primary terms acceptance versions.")
 
 
+class ProfileSubscriptionRecord(BaseModel):
+    purchase_date: datetime | None = Field(default=None, description="Purchase timestamp.")
+    purchase_type: str | None = Field(default=None, description="Subscription or purchase type label.")
+    provider: str | None = Field(default=None, description="Provider used for the purchase.")
+    price: float | None = Field(default=None, description="Recorded purchase price if available.")
+    ends_at: datetime | None = Field(default=None, description="Subscription end timestamp if present.")
+    is_active: bool = Field(default=False, description="Whether the purchase appears active at snapshot generation time.")
+
+
+class ProfileSubscriptionsSummary(BaseModel):
+    snapchat_plus_active: bool = Field(default=False, description="Whether the latest Snapchat+ subscription appears active.")
+    purchase_count: int = Field(default=0, description="Number of recorded Snapchat+ or platform purchase rows.")
+    latest_purchase: ProfileSubscriptionRecord | None = Field(default=None, description="Most recent Snapchat+ purchase row.")
+    recent_purchases: list[ProfileSubscriptionRecord] = Field(default_factory=list, description="Recent Snapchat+ purchase rows.")
+
+
+class ProfileCallRecord(BaseModel):
+    date: datetime | None = Field(default=None, description="Call timestamp.")
+    direction: str | None = Field(default=None, description="Call direction bucket such as outgoing, incoming, or completed.")
+    call_type: str | None = Field(default=None, description="Call media type such as AUDIO or VIDEO.")
+    participants: int | None = Field(default=None, description="Number of people reported in the chat.")
+    result: str | None = Field(default=None, description="Call result label if Snapchat exported one.")
+    city: str | None = Field(default=None, description="City reported for the call event.")
+    country: str | None = Field(default=None, description="Country reported for the call event.")
+    duration_seconds: int | None = Field(default=None, description="Call duration in seconds if present.")
+    network: str | None = Field(default=None, description="Reported network type such as WIFI.")
+
+
+class ProfileSupportRecord(BaseModel):
+    date: datetime | None = Field(default=None, description="Support interaction timestamp.")
+    subject: str | None = Field(default=None, description="Support subject label.")
+    message: str | None = Field(default=None, description="Support message body.")
+
+
+class ProfileCommunicationsSummary(BaseModel):
+    outgoing_calls_count: int = Field(default=0, description="Number of outgoing call rows in the export.")
+    incoming_calls_count: int = Field(default=0, description="Number of incoming call rows in the export.")
+    completed_calls_count: int = Field(default=0, description="Number of completed call rows in the export.")
+    latest_call_at: datetime | None = Field(default=None, description="Most recent call timestamp across talk history rows.")
+    recent_calls: list[ProfileCallRecord] = Field(default_factory=list, description="Recent combined talk history rows.")
+    support_notes: list[ProfileSupportRecord] = Field(default_factory=list, description="Recent support note rows.")
+
+
 class ProfileHistorySummary(BaseModel):
     display_name_changes: list[ProfileEventValue] = Field(..., description="Recent display name changes.")
     email_changes: list[ProfileEventValue] = Field(..., description="Recent email changes.")
@@ -288,6 +331,14 @@ class ProfileResponse(BaseModel):
     bitmoji: ProfileBitmojiSummary
     engagement: ProfileEngagementSummary
     security: ProfileSecuritySummary
+    subscriptions: ProfileSubscriptionsSummary = Field(
+        default_factory=ProfileSubscriptionsSummary,
+        description="Snapchat+ and other platform purchase summary derived from the export.",
+    )
+    communications: ProfileCommunicationsSummary = Field(
+        default_factory=ProfileCommunicationsSummary,
+        description="Combined talk history and support interactions derived from the export.",
+    )
     history: ProfileHistorySummary
     location: ProfileLocationSummary
     public_profile: ProfilePublicProfileSummary
@@ -458,10 +509,29 @@ class StoryCollectionSummary(BaseModel):
     items: list[StoryAssetSummary] = Field(..., description="Story media items ordered newest first inside the collection.")
 
 
+class StoryActivityEntry(BaseModel):
+    story_date: datetime | None = Field(default=None, description="Story activity timestamp exported by Snapchat.")
+    story_url: str | None = Field(default=None, description="Story or Spotlight URL when present in the export.")
+    action_type: str | None = Field(default=None, description="Action type such as VIEW.")
+    view_duration_seconds: float | None = Field(default=None, description="Normalized view duration in seconds if exported.")
+
+
+class StoriesActivitySummary(BaseModel):
+    spotlight_history_count: int = Field(default=0, description="Total Spotlight history rows in the latest export.")
+    shared_story_count: int = Field(default=0, description="Total shared story rows in the latest export.")
+    latest_story_date: datetime | None = Field(default=None, description="Most recent activity timestamp across shared story and Spotlight rows.")
+    spotlight_history: list[StoryActivityEntry] = Field(default_factory=list, description="Recent Spotlight history rows.")
+    shared_story_activity: list[StoryActivityEntry] = Field(default_factory=list, description="Recent shared story rows.")
+
+
 class StoryCollectionsResponse(BaseModel):
     items: list[StoryCollectionSummary] = Field(..., description="Imported story collections with nested story media items.")
     total_collections: int = Field(..., description="Number of story collections returned by the archive.")
     total_story_items: int = Field(..., description="Total number of story items across all returned collections.")
+    activity: StoriesActivitySummary = Field(
+        default_factory=StoriesActivitySummary,
+        description="Metadata-only shared story and Spotlight activity from the latest ingested export.",
+    )
 
 
 class SettingsStorageInfo(BaseModel):
@@ -477,6 +547,9 @@ class AppSettingsResponse(BaseModel):
                 "autoplay_videos_in_grid": False,
                 "show_memory_overlays": True,
                 "default_grid_size": "medium",
+                "show_stories_workspace": True,
+                "show_story_activity": True,
+                "show_snapchat_plus_profile_card": True,
                 "enable_debug_logging": False,
                 "storage": {
                     "raw_media_dir": "/srv/snapcapsule/raw",
@@ -500,6 +573,18 @@ class AppSettingsResponse(BaseModel):
         description="Preferred thumbnail density used by the memories grid.",
         examples=["medium"],
     )
+    show_stories_workspace: bool = Field(
+        ...,
+        description="Whether the Stories workspace should appear when story data exists in the current archive.",
+    )
+    show_story_activity: bool = Field(
+        ...,
+        description="Whether metadata-only Spotlight and shared story activity should render inside the Stories workspace.",
+    )
+    show_snapchat_plus_profile_card: bool = Field(
+        ...,
+        description="Whether the Snapchat+ profile card should render when Snapchat+ purchase data exists.",
+    )
     enable_debug_logging: bool = Field(
         ...,
         description="Whether backend application loggers should run at debug level.",
@@ -515,6 +600,9 @@ class AppSettingsUpdateRequest(BaseModel):
                 "autoplay_videos_in_grid": True,
                 "show_memory_overlays": False,
                 "default_grid_size": "large",
+                "show_stories_workspace": True,
+                "show_story_activity": True,
+                "show_snapchat_plus_profile_card": True,
                 "enable_debug_logging": True,
             }
         }
@@ -526,6 +614,12 @@ class AppSettingsUpdateRequest(BaseModel):
     default_grid_size: str | None = Field(
         default=None,
         description="Persisted default thumbnail size. Accepted values: small, medium, large.",
+    )
+    show_stories_workspace: bool | None = Field(default=None, description="Persisted Stories workspace visibility preference.")
+    show_story_activity: bool | None = Field(default=None, description="Persisted Spotlight/shared story activity visibility preference.")
+    show_snapchat_plus_profile_card: bool | None = Field(
+        default=None,
+        description="Persisted Snapchat+ profile card visibility preference.",
     )
     enable_debug_logging: bool | None = Field(
         default=None,

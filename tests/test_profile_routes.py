@@ -97,6 +97,27 @@ def test_get_profile_route_returns_persisted_snapshot(db_session_factory, monkey
             "connected_apps": [],
             "terms_acceptances": [],
         },
+        "subscriptions": {
+            "snapchat_plus_active": True,
+            "purchase_count": 1,
+            "latest_purchase": {
+                "purchase_date": "2026-03-25T19:25:18+00:00",
+                "purchase_type": "1 month Subscription",
+                "provider": "Apple",
+                "price": 0.99,
+                "ends_at": "2026-04-25T19:25:18+00:00",
+                "is_active": True,
+            },
+            "recent_purchases": [],
+        },
+        "communications": {
+            "outgoing_calls_count": 1,
+            "incoming_calls_count": 0,
+            "completed_calls_count": 0,
+            "latest_call_at": "2026-03-25T19:31:19+00:00",
+            "recent_calls": [],
+            "support_notes": [],
+        },
         "history": {
             "display_name_changes": [],
             "email_changes": [],
@@ -254,6 +275,84 @@ def test_build_profile_snapshot_parses_export_roots(tmp_path):
         ),
         encoding="utf-8",
     )
+    (json_root / "snapchat_plus.json").write_text(
+        json.dumps(
+            {
+                "": [
+                    {
+                        "Purchase Date": "2026-03-25 19:25:18 UTC",
+                        "Purchase Type": "1 month Subscription",
+                        "Purchase Provider": "Apple",
+                        "Price": 0.99,
+                        "End Date (if applicable)": "2026-04-25 19:25:18 UTC",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (json_root / "talk_history.json").write_text(
+        json.dumps(
+            {
+                "Outgoing Calls": [
+                    {
+                        "Date & Time": "2026-03-11 12:31:19 UTC",
+                        "Type": "AUDIO",
+                        "People in Chat": "2",
+                        "Result": "Call Initiated",
+                        "City": "s hertogenbosch",
+                        "Country": "NL",
+                        "Length (sec)": "34",
+                        "Network": "WIFI",
+                    }
+                ],
+                "Incoming Calls": [
+                    {
+                        "Date & Time": "2026-03-11 12:31:17 UTC",
+                        "Type": "VIDEO",
+                        "People in Chat": "2",
+                        "Result": "Call Received",
+                        "City": "s hertogenbosch",
+                        "Country": "NL",
+                        "Length (sec)": "0",
+                        "Network": "WIFI",
+                    }
+                ],
+                "Completed Calls": [
+                    {
+                        "Date & Time": "2026-03-11 12:31:17 UTC",
+                        "Type": "AUDIO",
+                        "People in Chat": "2",
+                        "City": "s hertogenbosch",
+                        "Country": "NL",
+                        "Length (sec)": "1670",
+                        "Network": "WIFI",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (json_root / "support_note.json").write_text(
+        json.dumps(
+            {
+                "Support Site": [
+                    {
+                        "Create Time": "2025-02-23 16:05:16 UTC",
+                        "Subject": "Feedback",
+                        "Message": "recover deleted memories?",
+                    }
+                ],
+                "In-app Report": [],
+                "Shake to Report": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (json_root / "snapchat_ai.json").write_text(
+        json.dumps({"My AI Content": [], "My AI Memory": []}),
+        encoding="utf-8",
+    )
     (json_root / "location_history.json").write_text(
         json.dumps(
             {
@@ -307,6 +406,14 @@ def test_build_profile_snapshot_parses_export_roots(tmp_path):
     assert snapshot["engagement"]["off_platform_share_count"] == 1
     assert snapshot["security"]["latest_terms_acceptance_at"] == "2021-11-18T23:02:25+00:00"
     assert snapshot["security"]["connected_apps"][0]["label"] == "Bitmoji"
+    assert snapshot["subscriptions"]["snapchat_plus_active"] is True
+    assert snapshot["subscriptions"]["purchase_count"] == 1
+    assert snapshot["subscriptions"]["latest_purchase"]["provider"] == "Apple"
+    assert snapshot["communications"]["outgoing_calls_count"] == 1
+    assert snapshot["communications"]["incoming_calls_count"] == 1
+    assert snapshot["communications"]["completed_calls_count"] == 1
+    assert snapshot["communications"]["recent_calls"][0]["direction"] == "outgoing"
+    assert snapshot["communications"]["support_notes"][0]["subject"] == "Feedback"
     assert snapshot["location"]["latest_region"] == "li"
     assert snapshot["location"]["raw_location_count"] == 2
     assert snapshot["location"]["visited_places"][0]["name"] == "The Old Irish"

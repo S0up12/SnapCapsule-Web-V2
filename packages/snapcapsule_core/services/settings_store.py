@@ -18,6 +18,9 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
     "autoplay_videos_in_grid": False,
     "show_memory_overlays": True,
     "default_grid_size": "medium",
+    "show_stories_workspace": True,
+    "show_story_activity": True,
+    "show_snapchat_plus_profile_card": True,
     "enable_debug_logging": False,
 }
 
@@ -32,6 +35,9 @@ class StoredPreferences:
     autoplay_videos_in_grid: bool
     show_memory_overlays: bool
     default_grid_size: str
+    show_stories_workspace: bool
+    show_story_activity: bool
+    show_snapchat_plus_profile_card: bool
     enable_debug_logging: bool
 
     def to_dict(self) -> dict[str, Any]:
@@ -40,6 +46,9 @@ class StoredPreferences:
             "autoplay_videos_in_grid": self.autoplay_videos_in_grid,
             "show_memory_overlays": self.show_memory_overlays,
             "default_grid_size": self.default_grid_size,
+            "show_stories_workspace": self.show_stories_workspace,
+            "show_story_activity": self.show_story_activity,
+            "show_snapchat_plus_profile_card": self.show_snapchat_plus_profile_card,
             "enable_debug_logging": self.enable_debug_logging,
         }
 
@@ -93,6 +102,18 @@ class SettingsStore:
                 payload.get("show_memory_overlays", DEFAULT_PREFERENCES["show_memory_overlays"])
             ),
             default_grid_size=grid_size,
+            show_stories_workspace=_coerce_bool(
+                payload.get("show_stories_workspace", DEFAULT_PREFERENCES["show_stories_workspace"])
+            ),
+            show_story_activity=_coerce_bool(
+                payload.get("show_story_activity", DEFAULT_PREFERENCES["show_story_activity"])
+            ),
+            show_snapchat_plus_profile_card=_coerce_bool(
+                payload.get(
+                    "show_snapchat_plus_profile_card",
+                    DEFAULT_PREFERENCES["show_snapchat_plus_profile_card"],
+                )
+            ),
             enable_debug_logging=_coerce_bool(
                 payload.get("enable_debug_logging", DEFAULT_PREFERENCES["enable_debug_logging"])
             ),

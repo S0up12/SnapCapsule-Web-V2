@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -20,11 +21,17 @@ PROFILE_JSON_FILES = (
     "friends.json",
     "location_history.json",
     "ranking.json",
+    "snapchat_ai.json",
+    "snapchat_plus.json",
     "snap_map_places_history.json",
     "snap_pro.json",
+    "support_note.json",
+    "talk_history.json",
     "terms_history.json",
     "user_profile.json",
 )
+
+DURATION_SECONDS_PATTERN = re.compile(r"(?P<seconds>\d+(?:\.\d+)?)")
 
 
 def get_profile_snapshot(session: Session, settings) -> dict[str, Any] | None:
@@ -108,6 +115,8 @@ def _snapshot_has_current_profile_shape(snapshot: dict[str, Any]) -> bool:
     engagement = snapshot.get("engagement")
     security = snapshot.get("security")
     ranking = snapshot.get("ranking")
+    subscriptions = snapshot.get("subscriptions")
+    communications = snapshot.get("communications")
     required_location_keys = {"visited_places", "business_visits", "snap_map_places"}
     required_engagement_keys = {
         "cohort_age",
@@ -119,13 +128,26 @@ def _snapshot_has_current_profile_shape(snapshot: dict[str, Any]) -> bool:
         "share_destinations",
     }
     required_security_keys = {"latest_terms_acceptance_at", "connected_apps", "terms_acceptances"}
+    required_subscriptions_keys = {"snapchat_plus_active", "purchase_count", "latest_purchase", "recent_purchases"}
+    required_communications_keys = {
+        "outgoing_calls_count",
+        "incoming_calls_count",
+        "completed_calls_count",
+        "latest_call_at",
+        "recent_calls",
+        "support_notes",
+    }
     return (
         isinstance(engagement, dict)
         and isinstance(security, dict)
         and isinstance(ranking, dict)
+        and isinstance(subscriptions, dict)
+        and isinstance(communications, dict)
         and required_location_keys.issubset(location.keys())
         and required_engagement_keys.issubset(engagement.keys())
         and required_security_keys.issubset(security.keys())
+        and required_subscriptions_keys.issubset(subscriptions.keys())
+        and required_communications_keys.issubset(communications.keys())
     )
 
 
@@ -138,6 +160,18 @@ def discover_profile_roots(session: Session, settings) -> list[Path]:
         if not candidate_roots:
             continue
         if any(_root_contains_profile_json(root) for root in candidate_roots):
+            return candidate_roots
+
+    return []
+
+
+def discover_latest_export_roots(session: Session, settings) -> list[Path]:
+    service = IngestionService(settings)
+    jobs = session.execute(select(IngestionJob).order_by(IngestionJob.created_at.desc())).scalars()
+
+    for job in jobs:
+        candidate_roots = _resolve_job_roots(service, job)
+        if candidate_roots:
             return candidate_roots
 
     return []
@@ -161,8 +195,11 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
     connected_apps = payloads.get("connected_apps.json") if isinstance(payloads.get("connected_apps.json"), dict) else {}
     location_history = payloads.get("location_history.json") if isinstance(payloads.get("location_history.json"), dict) else {}
     ranking = payloads.get("ranking.json") if isinstance(payloads.get("ranking.json"), dict) else {}
+    snapchat_plus = payloads.get("snapchat_plus.json") if isinstance(payloads.get("snapchat_plus.json"), dict) else {}
     snap_map_places_history = payloads.get("snap_map_places_history.json") if isinstance(payloads.get("snap_map_places_history.json"), dict) else {}
     snap_pro = payloads.get("snap_pro.json") if isinstance(payloads.get("snap_pro.json"), dict) else {}
+    support_note = payloads.get("support_note.json") if isinstance(payloads.get("support_note.json"), dict) else {}
+    talk_history = payloads.get("talk_history.json") if isinstance(payloads.get("talk_history.json"), dict) else {}
     terms_history = payloads.get("terms_history.json") if isinstance(payloads.get("terms_history.json"), dict) else {}
 
     basic_info = _as_dict(account.get("Basic Information"))
@@ -242,6 +279,8 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
         )
         if tag and count > 0
     ]
+    subscriptions_summary = build_subscriptions_summary(snapchat_plus)
+    communications_summary = build_communications_summary(talk_history, support_note)
 
     return {
         "generated_at": datetime.now(UTC).isoformat(),
@@ -350,6 +389,8 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
                 if isinstance(acceptance, dict)
             ],
         },
+        "subscriptions": subscriptions_summary,
+        "communications": communications_summary,
         "history": {
             "display_name_changes": [
                 {
@@ -383,6 +424,70 @@ def build_profile_snapshot(settings, roots: list[Path]) -> dict[str, Any] | None
             "location": _clean_string(profile_section.get("Location")),
             "website": _clean_string(profile_section.get("Profile Website")),
         },
+    }
+
+
+def build_subscriptions_summary(snapchat_plus: dict[str, Any]) -> dict[str, Any]:
+    purchase_rows = _sort_events_desc(_flatten_purchase_rows(snapchat_plus), "Purchase Date")
+    recent_purchases: list[dict[str, Any]] = []
+    latest_purchase: dict[str, Any] | None = None
+
+    for row in purchase_rows[:6]:
+        purchase_date = _parse_datetime(row.get("Purchase Date"))
+        ends_at = _parse_datetime(row.get("End Date (if applicable)"))
+        normalized = {
+            "purchase_date": _iso_or_none(purchase_date),
+            "purchase_type": _clean_string(row.get("Purchase Type")),
+            "provider": _clean_string(row.get("Purchase Provider")),
+            "price": _coerce_float_or_none(row.get("Price")),
+            "ends_at": _iso_or_none(ends_at),
+            "is_active": bool(ends_at is None or ends_at >= datetime.now(UTC)),
+        }
+        recent_purchases.append(normalized)
+        if latest_purchase is None:
+            latest_purchase = normalized
+
+    snapchat_plus_active = bool(latest_purchase and latest_purchase["is_active"])
+    return {
+        "snapchat_plus_active": snapchat_plus_active,
+        "purchase_count": len(purchase_rows),
+        "latest_purchase": latest_purchase,
+        "recent_purchases": recent_purchases,
+    }
+
+
+def build_communications_summary(talk_history: dict[str, Any], support_note: dict[str, Any]) -> dict[str, Any]:
+    outgoing_calls = _as_list(talk_history.get("Outgoing Calls"))
+    incoming_calls = _as_list(talk_history.get("Incoming Calls"))
+    completed_calls = _as_list(talk_history.get("Completed Calls"))
+
+    recent_calls = sorted(
+        [
+            *_normalize_call_rows(outgoing_calls, direction="outgoing"),
+            *_normalize_call_rows(incoming_calls, direction="incoming"),
+            *_normalize_call_rows(completed_calls, direction="completed"),
+        ],
+        key=lambda row: _parse_datetime(row.get("date")) or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )
+    support_notes = sorted(
+        [
+            *_normalize_support_rows(_as_list(support_note.get("Support Site"))),
+            *_normalize_support_rows(_as_list(support_note.get("In-app Report"))),
+            *_normalize_support_rows(_as_list(support_note.get("Shake to Report"))),
+        ],
+        key=lambda row: _parse_datetime(row.get("date")) or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )
+    latest_call = recent_calls[0] if recent_calls else {}
+
+    return {
+        "outgoing_calls_count": len([row for row in outgoing_calls if isinstance(row, dict)]),
+        "incoming_calls_count": len([row for row in incoming_calls if isinstance(row, dict)]),
+        "completed_calls_count": len([row for row in completed_calls if isinstance(row, dict)]),
+        "latest_call_at": _clean_string(latest_call.get("date")),
+        "recent_calls": recent_calls[:10],
+        "support_notes": support_notes[:6],
     }
 
 
@@ -471,6 +576,47 @@ def _root_contains_profile_json(root: Path) -> bool:
     return any((json_dir / filename).exists() for filename in PROFILE_JSON_FILES)
 
 
+def _flatten_purchase_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for value in payload.values():
+        if isinstance(value, list):
+            rows.extend(entry for entry in value if isinstance(entry, dict))
+    return rows
+
+
+def _normalize_call_rows(rows: list[Any], *, direction: str) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        normalized.append(
+            {
+                "date": _iso_or_none(_parse_datetime(row.get("Date & Time"))),
+                "direction": direction,
+                "call_type": _clean_string(row.get("Type")),
+                "participants": _coerce_int_or_none(row.get("People in Chat")),
+                "result": _clean_string(row.get("Result")),
+                "city": _clean_string(row.get("City")),
+                "country": _clean_string(row.get("Country")),
+                "duration_seconds": _coerce_int_or_none(row.get("Length (sec)")),
+                "network": _clean_string(row.get("Network")),
+            }
+        )
+    return normalized
+
+
+def _normalize_support_rows(rows: list[Any]) -> list[dict[str, Any]]:
+    return [
+        {
+            "date": _iso_or_none(_parse_datetime(row.get("Create Time"))),
+            "subject": _clean_string(row.get("Subject")),
+            "message": _clean_string(row.get("Message")),
+        }
+        for row in rows
+        if isinstance(row, dict)
+    ]
+
+
 def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
@@ -502,6 +648,33 @@ def _coerce_int(value: Any) -> int:
             return int(float(value or 0))
         except (TypeError, ValueError):
             return 0
+
+
+def _coerce_int_or_none(value: Any) -> int | None:
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
+
+
+def _coerce_float_or_none(value: Any) -> float | None:
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        match = DURATION_SECONDS_PATTERN.search(str(value))
+        if not match:
+            return None
+        try:
+            return float(match.group("seconds"))
+        except (TypeError, ValueError):
+            return None
 
 
 def _compact_strings(values: list[Any], *, limit: int) -> list[str]:

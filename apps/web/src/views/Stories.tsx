@@ -3,9 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import Lightbox from "../components/Lightbox";
 import SettingsCard from "../components/settings/SettingsCard";
+import { useSettings } from "../hooks/useSettings";
 import { getThumbnailUrl } from "../hooks/useTimeline";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
-import { useStories, type StoryAsset, type StoryCollection } from "../hooks/useStories";
+import { useStories, type StoryActivityEntry, type StoryAsset, type StoryCollection } from "../hooks/useStories";
 import { useToggleFavorite } from "../hooks/useAssetActions";
 
 function formatDate(value: string | null) {
@@ -32,6 +33,14 @@ function formatDateTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatDuration(value: number | null) {
+  if (value === null) {
+    return "Unknown";
+  }
+
+  return `${value.toFixed(value >= 10 ? 0 : 2)} sec`;
 }
 
 function formatStoryTypeLabel(storyType: StoryCollection["story_type"]) {
@@ -175,14 +184,77 @@ function StoryTile({
   );
 }
 
+function StoryActivityList({
+  title,
+  items,
+  emptyMessage,
+}: {
+  title: string;
+  items: StoryActivityEntry[];
+  emptyMessage: string;
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
+      <div className="mt-3">
+        {items.length === 0 ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">{emptyMessage}</p>
+        ) : (
+          <div className="max-h-80 space-y-3 overflow-y-auto pr-2">
+            {items.map((item, index) => (
+              <div
+                key={`${item.story_date ?? "unknown"}-${item.story_url ?? "url"}-${index}`}
+                className="rounded-[1.2rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.action_type || "Activity"}</p>
+                    {item.story_url ? (
+                      <a
+                        href={item.story_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 block truncate text-sm text-sky-700 underline decoration-sky-300 underline-offset-2 dark:text-sky-200"
+                      >
+                        {item.story_url}
+                      </a>
+                    ) : null}
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      View time: {formatDuration(item.view_duration_seconds)}
+                    </p>
+                  </div>
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                    {formatDateTime(item.story_date)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Stories() {
   const storiesQuery = useStories();
+  const settingsQuery = useSettings();
   const showOverlays = useShowMemoryOverlays();
   const toggleFavorite = useToggleFavorite();
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const collections = storiesQuery.data?.items ?? [];
+  const activity = storiesQuery.data?.activity ?? {
+    spotlight_history_count: 0,
+    shared_story_count: 0,
+    latest_story_date: null,
+    spotlight_history: [],
+    shared_story_activity: [],
+  };
+  const hasActivity = activity.spotlight_history_count > 0 || activity.shared_story_count > 0;
+  const showStoryActivity = settingsQuery.data?.show_story_activity ?? true;
+  const displayActivity = showStoryActivity && hasActivity;
   const totals = useMemo(() => {
     const photos = collections.reduce(
       (count, collection) => count + collection.items.filter((item) => item.media_type === "image").length,
@@ -235,7 +307,7 @@ export default function Stories() {
     );
   }
 
-  if (collections.length === 0) {
+  if (collections.length === 0 && !displayActivity) {
     return (
       <section className="mx-auto flex h-full min-h-0 w-full max-w-[1700px] items-center justify-center rounded-[2rem] border border-slate-200/70 bg-white/82 shadow-[0_24px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.035] dark:shadow-none">
         <div className="max-w-lg text-center">
@@ -253,46 +325,70 @@ export default function Stories() {
 
   return (
     <section className="mx-auto flex h-full min-h-0 w-full max-w-[1700px] flex-col gap-6">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className={`grid gap-3 sm:grid-cols-2 ${displayActivity ? "xl:grid-cols-6" : "xl:grid-cols-4"}`}>
         <CollectionStat label="Collections" value={storiesQuery.data?.total_collections ?? 0} icon={BookOpen} />
         <CollectionStat label="Story Items" value={storiesQuery.data?.total_story_items ?? 0} icon={Images} />
         <CollectionStat label="Photos" value={totals.photos} icon={ImageIcon} />
         <CollectionStat label="Videos" value={totals.videos} icon={Clapperboard} />
+        {displayActivity ? <CollectionStat label="Spotlight Rows" value={activity.spotlight_history_count} icon={Sparkles} /> : null}
+        {displayActivity ? <CollectionStat label="Shared Rows" value={activity.shared_story_count} icon={Radio} /> : null}
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
-        <SettingsCard title="Collections" description="Imported Snapchat stories grouped by story title and type.">
-          <div className="max-h-full space-y-4 overflow-y-auto pr-1">
-            {collections.map((collection) => (
-              <StoryCollectionCard
-                key={collection.id}
-                collection={collection}
-                selected={collection.id === selectedCollection?.id}
-                onSelect={() => setSelectedCollectionId(collection.id)}
-                showOverlays={showOverlays}
-              />
-            ))}
-          </div>
-        </SettingsCard>
-
-        {selectedCollection ? (
-          <SettingsCard
-            title={selectedCollection.title}
-            description={`${formatStoryTypeLabel(selectedCollection.story_type)} story · ${selectedCollection.total_items} item${selectedCollection.total_items === 1 ? "" : "s"} · ${formatDate(selectedCollection.earliest_posted_at)} to ${formatDate(selectedCollection.latest_posted_at)}`}
-          >
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {selectedCollection.items.map((asset, index) => (
-                <StoryTile
-                  key={asset.id}
-                  asset={asset}
+      {collections.length > 0 ? (
+        <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
+          <SettingsCard title="Collections" description="Imported Snapchat stories grouped by story title and type.">
+            <div className="max-h-full space-y-4 overflow-y-auto pr-1">
+              {collections.map((collection) => (
+                <StoryCollectionCard
+                  key={collection.id}
+                  collection={collection}
+                  selected={collection.id === selectedCollection?.id}
+                  onSelect={() => setSelectedCollectionId(collection.id)}
                   showOverlays={showOverlays}
-                  onOpen={() => setLightboxIndex(index)}
                 />
               ))}
             </div>
           </SettingsCard>
-        ) : null}
-      </div>
+
+          {selectedCollection ? (
+            <SettingsCard
+              title={selectedCollection.title}
+              description={`${formatStoryTypeLabel(selectedCollection.story_type)} story · ${selectedCollection.total_items} item${selectedCollection.total_items === 1 ? "" : "s"} · ${formatDate(selectedCollection.earliest_posted_at)} to ${formatDate(selectedCollection.latest_posted_at)}`}
+            >
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {selectedCollection.items.map((asset, index) => (
+                  <StoryTile
+                    key={asset.id}
+                    asset={asset}
+                    showOverlays={showOverlays}
+                    onOpen={() => setLightboxIndex(index)}
+                  />
+                ))}
+              </div>
+            </SettingsCard>
+          ) : null}
+        </div>
+      ) : null}
+
+      {displayActivity ? (
+        <SettingsCard
+          title="Spotlight & Shared Story Activity"
+          description={`Latest activity ${formatDateTime(activity.latest_story_date)} · metadata exported by Snapchat without local story media files.`}
+        >
+          <div className="grid gap-5 xl:grid-cols-2">
+            <StoryActivityList
+              title="Spotlight History"
+              items={activity.spotlight_history}
+              emptyMessage="No Spotlight history rows in this export."
+            />
+            <StoryActivityList
+              title="Shared Story Activity"
+              items={activity.shared_story_activity}
+              emptyMessage="No shared story rows in this export."
+            />
+          </div>
+        </SettingsCard>
+      ) : null}
 
       {selectedCollection && lightboxIndex !== null ? (
         <Lightbox

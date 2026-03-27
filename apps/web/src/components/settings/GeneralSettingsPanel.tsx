@@ -72,6 +72,44 @@ export default function GeneralSettingsPanel({ settings, isSaving, onUpdate }: G
           />
         </SettingRow>
       </SettingsCard>
+
+      <SettingsCard title="Archive Views">
+        <SettingRow
+          title="Show Stories Workspace"
+          description="Expose the Stories workspace when imported story media or story activity exists in the current archive."
+        >
+          <ToggleSwitch
+            label="Show Stories Workspace"
+            checked={settings.show_stories_workspace}
+            disabled={isSaving}
+            onCheckedChange={(checked) => void onUpdate({ show_stories_workspace: checked })}
+          />
+        </SettingRow>
+
+        <SettingRow
+          title="Show Story Activity"
+          description="Render Spotlight and shared story metadata inside the Stories workspace when Snapchat exports those sections."
+        >
+          <ToggleSwitch
+            label="Show Story Activity"
+            checked={settings.show_story_activity}
+            disabled={isSaving}
+            onCheckedChange={(checked) => void onUpdate({ show_story_activity: checked })}
+          />
+        </SettingRow>
+
+        <SettingRow
+          title="Show Snapchat+ Card"
+          description="Render the dedicated Snapchat+ profile card when subscription purchase data exists in the current export."
+        >
+          <ToggleSwitch
+            label="Show Snapchat+ Card"
+            checked={settings.show_snapchat_plus_profile_card}
+            disabled={isSaving}
+            onCheckedChange={(checked) => void onUpdate({ show_snapchat_plus_profile_card: checked })}
+          />
+        </SettingRow>
+      </SettingsCard>
     </div>
   );
 }
