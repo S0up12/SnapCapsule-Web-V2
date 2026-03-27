@@ -112,6 +112,28 @@ def test_get_chats_route_applies_filter_and_returns_expected_preview(db_session_
     assert payload["items"][0]["is_group"] is False
 
 
+def test_get_chats_route_searches_message_bodies(db_session_factory, monkeypatch):
+    SessionLocal, session_scope = db_session_factory
+    with session_scope() as session:
+        thread = _create_thread(session, external_id="alex", title="Alex")
+        _create_message(
+            session,
+            thread=thread,
+            sender="Alex",
+            sent_at=datetime(2026, 3, 19, 9, 0, tzinfo=UTC),
+            body="Meet me near the station entrance",
+        )
+
+    client = _build_chat_app(SessionLocal, monkeypatch)
+
+    response = client.get("/api/chats", params={"search": "station entrance"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["display_name"] == "Alex"
+
+
 def test_get_chat_messages_route_returns_grouped_messages_with_media_payload(db_session_factory, monkeypatch):
     SessionLocal, _ = db_session_factory
     with SessionLocal() as session:

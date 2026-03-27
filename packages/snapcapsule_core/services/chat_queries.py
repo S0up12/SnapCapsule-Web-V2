@@ -146,8 +146,18 @@ def list_chat_threads(session: Session, filters: ChatFilters) -> list[ChatConver
 
     if filters.search:
         search_value = f"%{filters.search.strip()}%"
+        matching_message = exists(
+            select(1)
+            .select_from(ChatMessage)
+            .where(
+                ChatMessage.thread_id == ChatThread.id,
+                ChatMessage.body.ilike(search_value),
+            )
+        )
         statement = statement.where(
-            ChatThread.title.ilike(search_value) | ChatThread.external_id.ilike(search_value)
+            ChatThread.title.ilike(search_value)
+            | ChatThread.external_id.ilike(search_value)
+            | matching_message
         )
 
     if filters.filter_name == "has_media":

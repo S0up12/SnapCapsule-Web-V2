@@ -119,6 +119,9 @@ def test_list_chat_threads_applies_search_sort_filter_and_preview(db_session):
     searched_records = list_chat_threads(db_session, ChatFilters(search="weekend"))
     assert [record.display_name for record in searched_records] == ["Weekend Crew"]
 
+    body_match_records = list_chat_threads(db_session, ChatFilters(search="plain text"))
+    assert [record.display_name for record in body_match_records] == ["Alex"]
+
 
 def test_list_grouped_chat_messages_merges_same_minute_and_sorts_media_assets(db_session):
     thread = _create_thread(db_session, external_id="ties", title="Ties")

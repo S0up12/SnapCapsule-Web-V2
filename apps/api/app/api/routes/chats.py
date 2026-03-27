@@ -27,7 +27,7 @@ def get_chats(
     sort: str = Query("newest", pattern="^(newest|oldest)$"),
     filter: str = Query("all", pattern="^(all|has_media)$"),
 ) -> ChatListResponse:
-    """Return conversations filtered by name and optionally narrowed to threads containing linked media."""
+    """Return conversations filtered by name or message text and optionally narrowed to threads containing linked media."""
     filters = ChatFilters(search=search, sort=sort, filter_name=filter)
     with SessionLocal() as session:
         items = list_chat_threads(session, filters)

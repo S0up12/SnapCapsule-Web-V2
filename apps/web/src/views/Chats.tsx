@@ -1,4 +1,4 @@
-import { ArrowDownWideNarrow, LoaderCircle, MessageSquareText, Pause, Play, Search, Volume2 } from "lucide-react";
+import { ArrowDownWideNarrow, ChevronDown, ChevronUp, LoaderCircle, MessageSquareText, Pause, Play, Search, Volume2 } from "lucide-react";
 import { Fragment, startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import PopoverSelect from "../components/controls/PopoverSelect";
@@ -6,6 +6,7 @@ import Lightbox from "../components/Lightbox";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
 import { getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
 import { useChatMessages, useChats, type ChatConversation, type ChatMediaAsset, type ChatMessageGroup } from "../hooks/useChats";
+import { listMatchedChatMessageIds, messageMatchesChatSearch, normalizeChatSearch } from "./chatSearch";
 
 type SenderTone = {
   labelClass: string;
@@ -160,7 +161,52 @@ function normalizeMessageLink(rawValue: string) {
   };
 }
 
-function renderMessageText(text: string, linkClass: string) {
+function renderSearchHighlights(text: string, normalizedSearch: string) {
+  if (!normalizedSearch) {
+    return text;
+  }
+
+  const lowerText = text.toLocaleLowerCase();
+  const pieces: Array<string | { type: "match"; value: string }> = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const matchIndex = lowerText.indexOf(normalizedSearch, cursor);
+    if (matchIndex < 0) {
+      pieces.push(text.slice(cursor));
+      break;
+    }
+
+    if (matchIndex > cursor) {
+      pieces.push(text.slice(cursor, matchIndex));
+    }
+
+    pieces.push({
+      type: "match",
+      value: text.slice(matchIndex, matchIndex + normalizedSearch.length),
+    });
+    cursor = matchIndex + normalizedSearch.length;
+  }
+
+  if (pieces.length === 0) {
+    pieces.push(text);
+  }
+
+  return pieces.map((piece, index) =>
+    typeof piece === "string" ? (
+      <Fragment key={index}>{piece}</Fragment>
+    ) : (
+      <mark
+        key={index}
+        className="rounded bg-amber-200/90 px-0.5 text-slate-950 dark:bg-amber-300/35 dark:text-white"
+      >
+        {piece.value}
+      </mark>
+    ),
+  );
+}
+
+function renderMessageText(text: string, linkClass: string, normalizedSearch: string) {
   const segments: Array<string | { href: string; label: string }> = [];
   let cursor = 0;
 
@@ -200,7 +246,7 @@ function renderMessageText(text: string, linkClass: string) {
     <p className="whitespace-pre-wrap break-words text-sm leading-6">
       {segments.map((segment, index) =>
         typeof segment === "string" ? (
-          <Fragment key={index}>{segment}</Fragment>
+          <Fragment key={index}>{renderSearchHighlights(segment, normalizedSearch)}</Fragment>
         ) : (
           <a
             key={index}
@@ -212,7 +258,7 @@ function renderMessageText(text: string, linkClass: string) {
               linkClass,
             ].join(" ")}
           >
-            {segment.label}
+            {renderSearchHighlights(segment.label, normalizedSearch)}
           </a>
         )
       )}
@@ -423,11 +469,17 @@ function MessageBubble({
   message,
   showOverlays,
   senderTone,
+  searchTerm,
+  isSearchMatch,
+  isActiveSearchMatch,
   onOpenMedia,
 }: {
   message: ChatMessageGroup;
   showOverlays: boolean;
   senderTone: SenderTone;
+  searchTerm: string;
+  isSearchMatch: boolean;
+  isActiveSearchMatch: boolean;
   onOpenMedia: (assetId: string) => void;
 }) {
   const audioAssets = message.media_assets.filter((asset) => asset.media_type === "audio");
@@ -443,8 +495,17 @@ function MessageBubble({
         </div>
         <div className="group mt-1.5 inline-flex items-stretch gap-3">
           <div className={["w-[3px] shrink-0 rounded-full", senderTone.poleClass].join(" ")} />
-          <div className="min-w-0 flex-1 rounded-r-[1.35rem] rounded-bl-[0.45rem] border border-slate-200/80 bg-white/88 px-4 py-3 text-slate-900 shadow-sm transition duration-150 group-hover:border-slate-300 group-hover:shadow-md dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100 dark:group-hover:border-white/16 dark:group-hover:shadow-black/25">
-            {message.text ? renderMessageText(message.text, senderTone.linkClass) : null}
+          <div
+            className={[
+              "min-w-0 flex-1 rounded-r-[1.35rem] rounded-bl-[0.45rem] border bg-white/88 px-4 py-3 text-slate-900 shadow-sm transition duration-150 group-hover:shadow-md dark:bg-slate-950/70 dark:text-slate-100",
+              isActiveSearchMatch
+                ? "border-amber-300 shadow-[0_18px_45px_rgba(245,158,11,0.2)] dark:border-amber-300/60 dark:shadow-[0_18px_45px_rgba(245,158,11,0.14)]"
+                : isSearchMatch
+                  ? "border-amber-200/80 dark:border-amber-300/35"
+                  : "border-slate-200/80 group-hover:border-slate-300 dark:border-white/10 dark:group-hover:border-white/16 dark:group-hover:shadow-black/25",
+            ].join(" ")}
+          >
+            {message.text ? renderMessageText(message.text, senderTone.linkClass, searchTerm) : null}
 
             {message.media_assets.length > 0 ? (
               <div className={`${message.text ? "mt-3" : ""} space-y-2`}>
@@ -486,6 +547,8 @@ export default function Chats() {
   const [filter, setFilter] = useState<"all" | "has_media">("all");
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [activeMatchIndex, setActiveMatchIndex] = useState<number | null>(null);
+  const normalizedSearch = useMemo(() => normalizeChatSearch(search), [search]);
 
   const conversationsQuery = useChats({ search, sort, filter });
   const conversations = useMemo(
@@ -495,6 +558,7 @@ export default function Chats() {
   const selectedConversation = conversations.find((conversation) => conversation.id === selectedChatId) ?? null;
   const messagesQuery = useChatMessages(selectedChatId);
   const messageScrollRef = useRef<HTMLDivElement | null>(null);
+  const messageElementRefs = useRef(new Map<string, HTMLDivElement | null>());
 
   useEffect(() => {
     if (!conversations.length) {
@@ -509,11 +573,11 @@ export default function Chats() {
 
   useEffect(() => {
     const element = messageScrollRef.current;
-    if (!element || !messagesQuery.data) {
+    if (!element || !messagesQuery.data || normalizedSearch) {
       return;
     }
     element.scrollTop = element.scrollHeight;
-  }, [messagesQuery.data, selectedChatId]);
+  }, [messagesQuery.data, normalizedSearch, selectedChatId]);
 
   const flattenedMedia = useMemo(() => {
     const items: TimelineAsset[] = [];
@@ -539,6 +603,11 @@ export default function Chats() {
     () => buildSenderToneMap(messagesQuery.data?.items ?? [], selectedConversation?.is_group ?? false),
     [messagesQuery.data?.items, selectedConversation?.is_group],
   );
+  const matchedMessageIds = useMemo(
+    () => listMatchedChatMessageIds(messagesQuery.data?.items ?? [], normalizedSearch),
+    [messagesQuery.data?.items, normalizedSearch],
+  );
+  const activeMatchedMessageId = activeMatchIndex !== null ? matchedMessageIds[activeMatchIndex] ?? null : null;
   const sortOptions = useMemo(
     () => [
       { value: "newest", label: "Newest First" },
@@ -554,6 +623,42 @@ export default function Chats() {
     [],
   );
 
+  useEffect(() => {
+    if (!matchedMessageIds.length) {
+      setActiveMatchIndex(null);
+      return;
+    }
+    setActiveMatchIndex(0);
+  }, [matchedMessageIds, selectedChatId]);
+
+  useEffect(() => {
+    if (!activeMatchedMessageId) {
+      return;
+    }
+    messageElementRefs.current.get(activeMatchedMessageId)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  }, [activeMatchedMessageId]);
+
+  function jumpToMatch(direction: "previous" | "next") {
+    if (!matchedMessageIds.length) {
+      return;
+    }
+
+    setActiveMatchIndex((current) => {
+      if (current === null) {
+        return 0;
+      }
+
+      if (direction === "previous") {
+        return current === 0 ? matchedMessageIds.length - 1 : current - 1;
+      }
+
+      return current === matchedMessageIds.length - 1 ? 0 : current + 1;
+    });
+  }
+
   return (
     <section className="flex h-full min-h-0 w-full overflow-hidden rounded-[1.9rem] border border-slate-200/80 bg-white/84 shadow-[0_28px_80px_rgba(15,23,42,0.1)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-black/25">
       <aside className="flex w-[30%] min-w-[20rem] max-w-[28rem] flex-col border-r border-slate-200/80 bg-white/78 dark:border-white/10 dark:bg-slate-950/55">
@@ -563,7 +668,8 @@ export default function Chats() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search conversations"
+              placeholder="Search chats and messages"
+              aria-label="Search chats and messages"
               className="w-full rounded-[1rem] border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100"
             />
           </div>
@@ -623,7 +729,39 @@ export default function Chats() {
         {selectedConversation ? (
           <>
             <header className="border-b border-slate-200/80 px-5 py-4 dark:border-white/10">
-              <h2 className="text-lg font-semibold text-slate-950 dark:text-white">{selectedConversation.display_name}</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-slate-950 dark:text-white">{selectedConversation.display_name}</h2>
+                {normalizedSearch ? (
+                  matchedMessageIds.length > 0 ? (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/70 bg-amber-100/80 px-2.5 py-1 text-xs font-medium text-amber-950 dark:border-amber-300/30 dark:bg-amber-300/10 dark:text-amber-100">
+                      <span>{matchedMessageIds.length} matches</span>
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-amber-800/80 dark:text-amber-100/70">
+                        {activeMatchIndex !== null ? `${activeMatchIndex + 1} of ${matchedMessageIds.length}` : `1 of ${matchedMessageIds.length}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => jumpToMatch("previous")}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-full transition hover:bg-black/6 dark:hover:bg-white/8"
+                        aria-label="Previous search match"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => jumpToMatch("next")}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-full transition hover:bg-black/6 dark:hover:bg-white/8"
+                        aria-label="Next search match"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="rounded-full border border-slate-200/80 bg-slate-100/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-300">
+                      No message matches in this conversation
+                    </div>
+                  )
+                ) : null}
+              </div>
             </header>
 
             <div
@@ -641,24 +779,33 @@ export default function Chats() {
               ) : (
                 <div className="space-y-5">
                   {messagesQuery.data?.items.map((message) => (
-                    <MessageBubble
+                    <div
                       key={message.id}
-                      message={message}
-                      showOverlays={showOverlays}
-                      senderTone={
-                        senderTones.get(message.sender_label || message.sender || "Unknown") ??
-                        (message.is_me ? PRIVATE_ME_TONE : PRIVATE_OTHER_TONE)
-                      }
-                      onOpenMedia={(assetId) => {
-                        const index = flattenedMedia.findIndex((asset) => asset.id === assetId);
-                        if (index < 0) {
-                          return;
-                        }
-                        startTransition(() => {
-                          setLightboxIndex(index);
-                        });
+                      ref={(element) => {
+                        messageElementRefs.current.set(message.id, element);
                       }}
-                    />
+                    >
+                      <MessageBubble
+                        message={message}
+                        showOverlays={showOverlays}
+                        senderTone={
+                          senderTones.get(message.sender_label || message.sender || "Unknown") ??
+                          (message.is_me ? PRIVATE_ME_TONE : PRIVATE_OTHER_TONE)
+                        }
+                        searchTerm={normalizedSearch}
+                        isSearchMatch={messageMatchesChatSearch(message, normalizedSearch)}
+                        isActiveSearchMatch={message.id === activeMatchedMessageId}
+                        onOpenMedia={(assetId) => {
+                          const index = flattenedMedia.findIndex((asset) => asset.id === assetId);
+                          if (index < 0) {
+                            return;
+                          }
+                          startTransition(() => {
+                            setLightboxIndex(index);
+                          });
+                        }}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
