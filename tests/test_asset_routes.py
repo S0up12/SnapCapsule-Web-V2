@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -196,3 +197,41 @@ def test_get_timeline_route_searches_tags_filenames_and_date_text(db_session_fac
     assert client.get("/api/timeline", params={"search": "aurora"}).json()["items"][0]["id"] == str(matching.id)
     assert client.get("/api/timeline", params={"search": "sunrise-beach"}).json()["items"][0]["id"] == str(matching.id)
     assert client.get("/api/timeline", params={"search": "june 15"}).json()["items"][0]["id"] == str(matching.id)
+
+
+def test_get_asset_playback_route_streams_browser_compatible_video(db_session_factory, monkeypatch, tmp_path: Path):
+    SessionLocal, session_scope = db_session_factory
+    source_path = tmp_path / "source.mp4"
+    source_path.write_bytes(b"original-video")
+    playback_path = tmp_path / "playback" / "video.mp4"
+    playback_path.parent.mkdir(parents=True, exist_ok=True)
+    playback_path.write_bytes(b"0123456789")
+
+    with session_scope() as session:
+        asset = _create_memory_asset(
+            session,
+            taken_at=datetime(2024, 6, 15, 13, 0, tzinfo=UTC),
+            media_type=MediaType.VIDEO,
+        )
+        asset.original_path = str(source_path)
+
+    client = _build_asset_app(SessionLocal, session_scope, monkeypatch)
+
+    class PlaybackMediaProcessor:
+        def ensure_browser_playback(self, asset_id: str, media_path: str, media_type: MediaType) -> Path:
+            assert asset_id == str(asset.id)
+            assert Path(media_path) == source_path
+            assert media_type == MediaType.VIDEO
+            return playback_path
+
+    monkeypatch.setattr(asset_routes, "MediaProcessor", PlaybackMediaProcessor)
+
+    response = client.get(
+        f"/api/asset/{asset.id}/playback",
+        headers={"Range": "bytes=0-3"},
+    )
+
+    assert response.status_code == 206
+    assert response.content == b"0123"
+    assert response.headers["content-range"] == "bytes 0-3/10"
+    assert response.headers["content-type"].startswith("video/mp4")

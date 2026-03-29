@@ -280,39 +280,46 @@ def get_asset_original(asset_id: uuid.UUID, request: Request):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
 
     original_path = _existing_file(asset.original_path, "Original media file is missing.")
-    media_type = mimetypes.guess_type(original_path.name)[0] or "application/octet-stream"
+    return _serve_media_file(
+        original_path,
+        request,
+        media_type=asset.media_type,
+    )
 
-    if asset.media_type not in {MediaType.VIDEO, MediaType.AUDIO}:
-        return FileResponse(
-            path=original_path,
-            media_type=media_type,
-            headers={"Cache-Control": "public, max-age=3600"},
-        )
 
-    file_size = original_path.stat().st_size
-    headers = {
-        "Accept-Ranges": "bytes",
-        "Cache-Control": "public, max-age=3600",
-    }
-    range_header = request.headers.get("range")
-    if not range_header:
-        headers["Content-Length"] = str(file_size)
-        return FileResponse(path=original_path, media_type=media_type, headers=headers)
+@router.get(
+    "/asset/{asset_id}/playback",
+    response_class=FileResponse,
+    tags=["Media Server"],
+    summary="Serve browser-compatible video playback media",
+    responses={
+        200: {
+            "description": "Browser-compatible full video response when no range header is provided.",
+            "content": {"video/mp4": {}, "application/octet-stream": {}},
+        },
+        206: {
+            "description": "Partial content response for ranged browser playback.",
+            "content": {"video/mp4": {}},
+        },
+        404: {"model": ErrorResponse, "description": "Asset or playback media file was not found."},
+        416: {"description": "Requested byte range was invalid for the playback media file."},
+    },
+)
+def get_asset_playback(asset_id: uuid.UUID, request: Request):
+    """Serve a browser-compatible video stream, transcoding unsupported originals into a cached MP4 on first request."""
+    with SessionLocal() as session:
+        asset = get_asset_file_record(session, asset_id)
 
-    byte_range = _parse_range_header(range_header, file_size)
-    if byte_range is None:
-        headers["Content-Range"] = f"bytes */{file_size}"
-        return Response(status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE, headers=headers)
+    if asset is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
+    if asset.media_type != MediaType.VIDEO:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Playback is only available for video assets.")
 
-    start, end = byte_range
-    content_length = end - start + 1
-    headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-    headers["Content-Length"] = str(content_length)
-    return StreamingResponse(
-        _iter_file_range(original_path, start, end),
-        status_code=status.HTTP_206_PARTIAL_CONTENT,
-        media_type=media_type,
-        headers=headers,
+    playback_path = _resolve_playback_path(asset)
+    return _serve_media_file(
+        playback_path,
+        request,
+        media_type=MediaType.VIDEO,
     )
 
 
@@ -333,6 +340,49 @@ def _resolve_thumbnail_path(asset, *, include_overlay: bool) -> Path:
         return _existing_file(asset.thumbnail_path, "Thumbnail file is missing.")
 
     return _existing_file(asset.thumbnail_path, "Thumbnail file is missing.")
+
+
+def _resolve_playback_path(asset) -> Path:
+    processor = MediaProcessor()
+    return _existing_file(processor.ensure_browser_playback(str(asset.id), asset.original_path, asset.media_type), "Playback media file is missing.")
+
+
+def _serve_media_file(path: Path, request: Request, *, media_type: MediaType):
+    resolved_path = _existing_file(path, "Media file is missing.")
+    response_media_type = mimetypes.guess_type(resolved_path.name)[0] or "application/octet-stream"
+
+    if media_type not in {MediaType.VIDEO, MediaType.AUDIO}:
+        return FileResponse(
+            path=resolved_path,
+            media_type=response_media_type,
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+
+    file_size = resolved_path.stat().st_size
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "public, max-age=3600",
+    }
+    range_header = request.headers.get("range")
+    if not range_header:
+        headers["Content-Length"] = str(file_size)
+        return FileResponse(path=resolved_path, media_type=response_media_type, headers=headers)
+
+    byte_range = _parse_range_header(range_header, file_size)
+    if byte_range is None:
+        headers["Content-Range"] = f"bytes */{file_size}"
+        return Response(status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE, headers=headers)
+
+    start, end = byte_range
+    content_length = end - start + 1
+    headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+    headers["Content-Length"] = str(content_length)
+    return StreamingResponse(
+        _iter_file_range(resolved_path, start, end),
+        status_code=status.HTTP_206_PARTIAL_CONTENT,
+        media_type=response_media_type,
+        headers=headers,
+    )
 
 
 def _parse_range_header(range_header: str, file_size: int) -> tuple[int, int] | None:

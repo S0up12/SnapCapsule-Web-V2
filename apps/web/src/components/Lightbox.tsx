@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, Clapperboard, Image as ImageIcon, Star, Tags
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
-import { formatTimelineDate, getOriginalUrl, getOverlayUrl, type TimelineAsset } from "../hooks/useTimeline";
+import { formatTimelineDate, getOriginalUrl, getOverlayUrl, getPlaybackUrl, type TimelineAsset } from "../hooks/useTimeline";
 
 type LightboxProps = {
   assets: TimelineAsset[];
@@ -124,7 +124,7 @@ export default function Lightbox({
   }
 
   const date = formatTimelineDate(asset.taken_at);
-  const mediaUrl = getOriginalUrl(asset.id, asset.has_overlay ? 1 : 0);
+  const mediaUrl = isVideo ? getPlaybackUrl(asset.id, asset.has_overlay ? 1 : 0) : getOriginalUrl(asset.id, asset.has_overlay ? 1 : 0);
   const overlayUrl = getOverlayUrl(asset.id, asset.has_overlay ? 1 : 0);
 
   return (

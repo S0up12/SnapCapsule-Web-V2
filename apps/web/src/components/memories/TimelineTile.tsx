@@ -3,7 +3,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Star, Tags } from "lucide-react";
 
 import { getMemoryMediaTypeIcon } from "./mediaTypeIcons";
-import { getOriginalUrl, getOverlayUrl, getThumbnailUrl, type TimelineAsset } from "../../hooks/useTimeline";
+import { getOverlayUrl, getPlaybackUrl, getThumbnailUrl, type TimelineAsset } from "../../hooks/useTimeline";
 
 const VIDEO_HOVER_PREVIEW_DELAY_MS = 1200;
 
@@ -40,7 +40,7 @@ export default memo(function TimelineTile({
   const [isPreviewingVideo, setIsPreviewingVideo] = useState(false);
   const canPreviewVideo = autoplayVideosInGrid && asset.media_type === "video";
   const thumbnailUrl = getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0, showOverlays);
-  const mediaUrl = getOriginalUrl(asset.id, asset.has_overlay ? 1 : 0);
+  const mediaUrl = getPlaybackUrl(asset.id, asset.has_overlay ? 1 : 0);
   const overlayUrl = asset.has_overlay ? getOverlayUrl(asset.id, 1) : null;
   const MediaTypeIcon = getMemoryMediaTypeIcon(asset.media_type);
 

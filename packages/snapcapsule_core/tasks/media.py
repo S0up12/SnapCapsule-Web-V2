@@ -8,7 +8,7 @@ from sqlalchemy.exc import OperationalError
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.db import session_scope
 from snapcapsule_core.models import Asset, IngestionJob
-from snapcapsule_core.models.enums import IngestionJobStatus
+from snapcapsule_core.models.enums import IngestionJobStatus, MediaType
 from snapcapsule_core.queue import celery_app
 from snapcapsule_core.services.ingestion_jobs import (
     JobCanceledError,
@@ -81,7 +81,9 @@ def _mark_asset_success(
     thumbnail: Path | None,
     checksum: str,
     *,
+    playback_mode: str | None = None,
     thumbnail_error: str | None = None,
+    playback_error: str | None = None,
 ) -> None:
     asset.original_path = str(stored_media)
     asset.overlay_path = str(stored_overlay) if stored_overlay else None
@@ -90,10 +92,18 @@ def _mark_asset_success(
     metadata = dict(asset.raw_metadata or {})
     metadata["processing"] = "completed"
     metadata.pop("processing_error", None)
+    if playback_mode:
+        metadata["browser_playback"] = playback_mode
+    else:
+        metadata.pop("browser_playback", None)
     if thumbnail_error:
         metadata["thumbnail_error"] = thumbnail_error
     else:
         metadata.pop("thumbnail_error", None)
+    if playback_error:
+        metadata["playback_error"] = playback_error
+    else:
+        metadata.pop("playback_error", None)
     asset.raw_metadata = metadata
 
 
@@ -172,7 +182,10 @@ def process_asset_media(
                 raise JobCanceledError(f"Ingestion job {job_id} was canceled")
             asset.media_type = processor.detect_actual_media_type(stored_media, asset.media_type)
             thumbnail_error: str | None = None
+            playback_error: str | None = None
+            playback_mode: str | None = None
             plain_thumbnail: Path | None = None
+            browser_playback: Path | None = None
             try:
                 thumbnail = processor.generate_thumbnail(
                     str(asset.id),
@@ -191,6 +204,17 @@ def process_asset_media(
             except Exception as exc:
                 thumbnail = None
                 thumbnail_error = summarize_exception_message(exc)
+            try:
+                browser_playback = processor.ensure_browser_playback(
+                    str(asset.id),
+                    stored_media,
+                    asset.media_type,
+                )
+                if asset.media_type == MediaType.VIDEO:
+                    playback_mode = "transcoded" if browser_playback != stored_media else "original"
+            except Exception as exc:
+                browser_playback = None
+                playback_error = summarize_exception_message(exc)
             checksum = processor.compute_checksum(stored_media)
 
             _mark_asset_success(
@@ -199,7 +223,9 @@ def process_asset_media(
                 stored_overlay,
                 thumbnail,
                 checksum,
+                playback_mode=playback_mode,
                 thumbnail_error=thumbnail_error,
+                playback_error=playback_error,
             )
             read_bytes = Path(source_path).stat().st_size if Path(source_path).exists() else stored_media.stat().st_size
             write_bytes = stored_media.stat().st_size
@@ -211,6 +237,8 @@ def process_asset_media(
                 write_bytes += thumbnail.stat().st_size
             if plain_thumbnail is not None and plain_thumbnail.exists():
                 write_bytes += plain_thumbnail.stat().st_size
+            if browser_playback is not None and browser_playback != stored_media and browser_playback.exists():
+                write_bytes += browser_playback.stat().st_size
             record_public_job_metrics(
                 job,
                 read_bytes_delta=read_bytes,
@@ -308,6 +336,17 @@ def rebuild_thumbnail_cache() -> dict[str, int]:
 
         rebuilt_asset_ids = {candidate.asset_id for candidate in candidates}
         for asset in assets:
+            if asset.media_type == MediaType.VIDEO and asset.original_path:
+                try:
+                    playback_path = processor.ensure_browser_playback(str(asset.id), asset.original_path, asset.media_type)
+                    metadata = dict(asset.raw_metadata or {})
+                    metadata["browser_playback"] = "transcoded" if playback_path != Path(asset.original_path) else "original"
+                    metadata.pop("playback_error", None)
+                    asset.raw_metadata = metadata
+                except Exception as exc:
+                    metadata = dict(asset.raw_metadata or {})
+                    metadata["playback_error"] = summarize_exception_message(exc)
+                    asset.raw_metadata = metadata
             if asset.id not in rebuilt_asset_ids:
                 continue
             thumbnail = processor.resolve_existing_thumbnail_path(str(asset.id), include_overlay=True)

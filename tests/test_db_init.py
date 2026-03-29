@@ -61,7 +61,7 @@ def test_init_database_requires_explicit_migrations(monkeypatch):
     monkeypatch.setattr(db, "engine", _DummyEngine(connection))
     monkeypatch.setattr(db, "inspect", lambda conn: _Inspector())
 
-    with pytest.raises(RuntimeError, match="python -m alembic upgrade head"):
+    with pytest.raises(RuntimeError, match="alembic upgrade head"):
         db.init_database()
 
     assert len(connection.statements) == 1

@@ -22,7 +22,7 @@ try {
     exit $LASTEXITCODE
   }
 
-  & docker compose run --rm backend python -m alembic upgrade head
+  & docker compose run --rm backend alembic upgrade head
   if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
   }

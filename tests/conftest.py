@@ -21,7 +21,10 @@ def _derive_test_database_url() -> str:
     if explicit:
         return explicit
 
-    base = os.getenv("SNAPCAPSULE_DATABASE_URL", "postgresql+psycopg://snapcapsule:snapcapsule@db:5432/snapcapsule")
+    base = os.getenv(
+        "SNAPCAPSULE_DATABASE_URL",
+        "postgresql+psycopg://snapcapsule:snapcapsule@127.0.0.1:5432/snapcapsule",
+    )
     parts = urlsplit(base)
     database_name = parts.path.rsplit("/", 1)[-1] or "snapcapsule"
     test_name = database_name if database_name.endswith("_test") else f"{database_name}_test"

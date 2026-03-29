@@ -183,6 +183,10 @@ export function getOriginalUrl(assetId: string, cacheKey?: string | number | boo
   return withQueryParams(`/api/asset/${assetId}/original`, { v: cacheKey });
 }
 
+export function getPlaybackUrl(assetId: string, cacheKey?: string | number | boolean | null) {
+  return withQueryParams(`/api/asset/${assetId}/playback`, { v: cacheKey });
+}
+
 export function getOverlayUrl(assetId: string, cacheKey?: string | number | boolean | null) {
   return withQueryParams(`/api/asset/${assetId}/overlay`, { v: cacheKey });
 }

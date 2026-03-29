@@ -22,7 +22,7 @@ def init_database() -> None:
         connection.execute(text("SELECT 1"))
         inspector = inspect(connection)
         if not inspector.has_table("alembic_version"):
-            raise RuntimeError("Database schema is not initialized. Run `python -m alembic upgrade head` before starting the API.")
+            raise RuntimeError("Database schema is not initialized. Run `alembic upgrade head` before starting the API.")
 
 
 def get_db_session() -> Generator[Session, None, None]:

@@ -78,7 +78,7 @@ docker compose up -d db redis
 4. Run the database migrations in a one-off backend container:
 
 ```bash
-docker compose run --rm backend python -m alembic upgrade head
+docker compose run --rm backend alembic upgrade head
 ```
 
 5. Start the application stack:
@@ -95,6 +95,19 @@ http://localhost:8000/health
 ```
 
 The frontend runs through Vite on port `3000`, the API runs on port `8000`, and both backend and frontend reload automatically when you save local files.
+
+## Local Host Development
+
+If you want to run the Python app directly from your IDE instead of inside Docker, keep `db` and `redis` running with Compose:
+
+```bash
+docker compose up -d db redis
+docker compose run --rm backend alembic upgrade head
+python -m uvicorn apps.api.app.main:app --reload
+```
+
+The default host configuration uses `127.0.0.1` for Postgres and Redis and stores local data under `./data`, so the same checkout works cleanly across different PCs without editing source files. If you already have the backend dependencies installed locally, `alembic upgrade head` also works from the repo root.
+Postgres now defaults to a Docker named volume instead of `./data/postgres`, which avoids stale machine-specific database clusters breaking startup when you switch computers. If you already have an old `./data/postgres` folder from a previous setup, stop the stack and remove it before recreating the database container.
 
 ## Tests
 

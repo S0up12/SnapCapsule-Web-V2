@@ -15,6 +15,10 @@ from snapcapsule_core.models.enums import AssetSource, MediaType
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm", ".mkv", ".m4v"}
 THUMBNAIL_EXTENSION = ".webp"
 LEGACY_THUMBNAIL_EXTENSIONS = (THUMBNAIL_EXTENSION, ".jpg")
+PLAYBACK_EXTENSION = ".mp4"
+BROWSER_SAFE_PLAYBACK_EXTENSIONS = {".mp4", ".m4v"}
+BROWSER_SAFE_VIDEO_CODECS = {"h264"}
+BROWSER_SAFE_AUDIO_CODECS = {"aac", "mp3"}
 
 
 class MediaProcessor:
@@ -42,6 +46,25 @@ class MediaProcessor:
             candidate = self.thumbnail_destination_path(asset_id, include_overlay=include_overlay, extension=extension)
             if candidate.exists() and candidate.is_file():
                 return candidate
+        return None
+
+    def playback_destination_path(
+        self,
+        asset_id: str,
+        *,
+        extension: str = PLAYBACK_EXTENSION,
+    ) -> Path:
+        return Path(self.settings.thumbnail_dir) / "playback" / f"{asset_id}{extension}"
+
+    def resolve_existing_playback_path(
+        self,
+        asset_id: str,
+        *,
+        extension: str = PLAYBACK_EXTENSION,
+    ) -> Path | None:
+        candidate = self.playback_destination_path(asset_id, extension=extension)
+        if candidate.exists() and candidate.is_file():
+            return candidate
         return None
 
     def store_media_file(
@@ -83,6 +106,93 @@ class MediaProcessor:
         if media_type == MediaType.VIDEO:
             return self._generate_video_thumbnail(media_path, destination, active_overlay_path)
         return None
+
+    def ensure_browser_playback(
+        self,
+        asset_id: str,
+        media_path: str | Path,
+        media_type: MediaType,
+    ) -> Path:
+        source_path = Path(media_path)
+        if media_type != MediaType.VIDEO:
+            return source_path
+        if not self.requires_browser_playback_transcode(source_path):
+            return source_path
+
+        existing = self.resolve_existing_playback_path(asset_id)
+        if existing is not None:
+            return existing
+
+        return self.generate_browser_playback(asset_id, source_path)
+
+    def requires_browser_playback_transcode(self, media_path: str | Path) -> bool:
+        source_path = Path(media_path)
+        if source_path.suffix.lower() not in BROWSER_SAFE_PLAYBACK_EXTENSIONS:
+            return True
+
+        stream_details = self._probe_stream_details(source_path)
+        video_codecs = {
+            str(stream.get("codec_name", "")).strip().lower()
+            for stream in stream_details
+            if str(stream.get("codec_type", "")).strip().lower() == "video" and stream.get("codec_name")
+        }
+        if not video_codecs or not video_codecs.issubset(BROWSER_SAFE_VIDEO_CODECS):
+            return True
+
+        audio_codecs = {
+            str(stream.get("codec_name", "")).strip().lower()
+            for stream in stream_details
+            if str(stream.get("codec_type", "")).strip().lower() == "audio" and stream.get("codec_name")
+        }
+        if audio_codecs and not audio_codecs.issubset(BROWSER_SAFE_AUDIO_CODECS):
+            return True
+
+        return False
+
+    def generate_browser_playback(self, asset_id: str, media_path: str | Path) -> Path:
+        source_path = Path(media_path)
+        destination = self.playback_destination_path(asset_id)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+
+        with tempfile.TemporaryDirectory(prefix="snapcapsule-playback-") as temp_dir:
+            temp_destination = Path(temp_dir) / destination.name
+            command = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(source_path),
+                "-map",
+                "0:v:0",
+                "-map",
+                "0:a:0?",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-crf",
+                "23",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
+                str(temp_destination),
+            ]
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=300,
+            )
+            if destination.exists():
+                destination.unlink()
+            shutil.move(str(temp_destination), str(destination))
+
+        return destination
 
     def detect_actual_media_type(self, media_path: str | Path, fallback: MediaType) -> MediaType:
         path = Path(media_path)
@@ -173,12 +283,20 @@ class MediaProcessor:
         return image
 
     def _probe_stream_types(self, media_path: str | Path) -> set[str]:
+        streams = self._probe_stream_details(media_path)
+        return {
+            str(stream.get("codec_type", "")).strip().lower()
+            for stream in streams
+            if isinstance(stream, dict) and stream.get("codec_type")
+        }
+
+    def _probe_stream_details(self, media_path: str | Path) -> list[dict[str, object]]:
         command = [
             "ffprobe",
             "-v",
             "error",
             "-show_entries",
-            "stream=codec_type",
+            "stream=codec_name,codec_type",
             "-of",
             "json",
             str(media_path),
@@ -193,8 +311,4 @@ class MediaProcessor:
         )
         payload = json.loads(result.stdout or "{}")
         streams = payload.get("streams", [])
-        return {
-            str(stream.get("codec_type", "")).strip().lower()
-            for stream in streams
-            if isinstance(stream, dict) and stream.get("codec_type")
-        }
+        return [stream for stream in streams if isinstance(stream, dict)]
