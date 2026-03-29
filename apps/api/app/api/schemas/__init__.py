@@ -51,6 +51,7 @@ from .profile import (
 from .settings import (
     AppSettingsResponse,
     AppSettingsUpdateRequest,
+    LibraryDiagnosticsResponse,
     SettingsStorageInfo,
     SystemActionResponse,
     SystemStatusResponse,
@@ -85,6 +86,7 @@ __all__ = [
     "IngestionJobResponse",
     "IngestionJobsListResponse",
     "IngestionStartResponse",
+    "LibraryDiagnosticsResponse",
     "ProfileAccountSummary",
     "ProfileBitmojiSummary",
     "ProfileCallRecord",

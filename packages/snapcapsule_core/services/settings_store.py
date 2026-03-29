@@ -26,6 +26,7 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
     "timeline_default_sort": "newest",
     "timeline_default_filter": "all",
     "timeline_date_grouping": "year",
+    "timeline_page_size": 100,
     "remember_last_timeline_filters": False,
     "show_undated_assets": True,
     "show_stories_workspace": True,
@@ -33,6 +34,7 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
     "show_snapchat_plus_profile_card": True,
     "blur_private_names": False,
     "hide_exact_timestamps": False,
+    "hide_location_details": False,
     "demo_safe_mode": False,
     "enable_debug_logging": False,
 }
@@ -42,6 +44,7 @@ VALID_VIDEO_PREVIEW_HOVER_DELAYS = {"off", "0.6s", "1.2s", "2s"}
 VALID_TIMELINE_DEFAULT_SORTS = {"newest", "oldest"}
 VALID_TIMELINE_DEFAULT_FILTERS = {"all", "photos", "videos", "favorites"}
 VALID_TIMELINE_DATE_GROUPINGS = {"year", "month", "day"}
+VALID_TIMELINE_PAGE_SIZES = {50, 100, 150, 200}
 TRUE_VALUES = {"1", "true", "yes", "on"}
 FALSE_VALUES = {"0", "false", "no", "off", ""}
 
@@ -60,6 +63,7 @@ class StoredPreferences:
     timeline_default_sort: str
     timeline_default_filter: str
     timeline_date_grouping: str
+    timeline_page_size: int
     remember_last_timeline_filters: bool
     show_undated_assets: bool
     show_stories_workspace: bool
@@ -67,6 +71,7 @@ class StoredPreferences:
     show_snapchat_plus_profile_card: bool
     blur_private_names: bool
     hide_exact_timestamps: bool
+    hide_location_details: bool
     demo_safe_mode: bool
     enable_debug_logging: bool
 
@@ -84,6 +89,7 @@ class StoredPreferences:
             "timeline_default_sort": self.timeline_default_sort,
             "timeline_default_filter": self.timeline_default_filter,
             "timeline_date_grouping": self.timeline_date_grouping,
+            "timeline_page_size": self.timeline_page_size,
             "remember_last_timeline_filters": self.remember_last_timeline_filters,
             "show_undated_assets": self.show_undated_assets,
             "show_stories_workspace": self.show_stories_workspace,
@@ -91,6 +97,7 @@ class StoredPreferences:
             "show_snapchat_plus_profile_card": self.show_snapchat_plus_profile_card,
             "blur_private_names": self.blur_private_names,
             "hide_exact_timestamps": self.hide_exact_timestamps,
+            "hide_location_details": self.hide_location_details,
             "demo_safe_mode": self.demo_safe_mode,
             "enable_debug_logging": self.enable_debug_logging,
         }
@@ -166,6 +173,14 @@ class SettingsStore:
         if timeline_date_grouping not in VALID_TIMELINE_DATE_GROUPINGS:
             timeline_date_grouping = "year"
 
+        timeline_page_size = payload.get("timeline_page_size", DEFAULT_PREFERENCES["timeline_page_size"])
+        try:
+            timeline_page_size = int(timeline_page_size)
+        except (TypeError, ValueError):
+            timeline_page_size = 100
+        if timeline_page_size not in VALID_TIMELINE_PAGE_SIZES:
+            timeline_page_size = 100
+
         return StoredPreferences(
             dark_mode=_coerce_bool(payload.get("dark_mode", DEFAULT_PREFERENCES["dark_mode"])),
             prefer_browser_playback=_coerce_bool(
@@ -191,6 +206,7 @@ class SettingsStore:
             timeline_default_sort=timeline_default_sort,
             timeline_default_filter=timeline_default_filter,
             timeline_date_grouping=timeline_date_grouping,
+            timeline_page_size=timeline_page_size,
             remember_last_timeline_filters=_coerce_bool(
                 payload.get(
                     "remember_last_timeline_filters",
@@ -217,6 +233,9 @@ class SettingsStore:
             ),
             hide_exact_timestamps=_coerce_bool(
                 payload.get("hide_exact_timestamps", DEFAULT_PREFERENCES["hide_exact_timestamps"])
+            ),
+            hide_location_details=_coerce_bool(
+                payload.get("hide_location_details", DEFAULT_PREFERENCES["hide_location_details"])
             ),
             demo_safe_mode=_coerce_bool(
                 payload.get("demo_safe_mode", DEFAULT_PREFERENCES["demo_safe_mode"])

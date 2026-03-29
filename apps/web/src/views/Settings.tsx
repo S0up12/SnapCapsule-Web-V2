@@ -8,7 +8,7 @@ import PrivacySettingsPanel from "../components/settings/PrivacySettingsPanel";
 import TimelineSettingsPanel from "../components/settings/TimelineSettingsPanel";
 import type { AppSettingsUpdate } from "../hooks/useSettings";
 import { useSettings } from "../hooks/useSettings";
-import { useSystemAction, type SystemActionResponse } from "../hooks/useSystemStatus";
+import { useLibraryDiagnostics, useSystemAction, type SystemActionResponse } from "../hooks/useSystemStatus";
 
 const CATEGORY_ITEMS = [
   {
@@ -45,8 +45,12 @@ export default function Settings() {
   const [dataFeedback, setDataFeedback] = useState<SystemActionResponse | null>(null);
 
   const settingsQuery = useSettings();
+  const libraryDiagnosticsQuery = useLibraryDiagnostics();
   const rescanAction = useSystemAction("/api/system/rescan");
   const rebuildThumbnailsAction = useSystemAction("/api/system/rebuild-thumbnails");
+  const rebuildPlaybackAction = useSystemAction("/api/system/rebuild-playback-cache");
+  const cleanPlaybackAction = useSystemAction("/api/system/clean-playback-cache");
+  const verifyLibraryAction = useSystemAction("/api/system/verify-library");
   const resetAction = useSystemAction("/api/system/reset");
 
   useEffect(() => {
@@ -83,6 +87,21 @@ export default function Settings() {
 
   async function handleRebuildThumbnails() {
     const result = await rebuildThumbnailsAction.mutateAsync();
+    setDataFeedback(result);
+  }
+
+  async function handleRebuildPlayback() {
+    const result = await rebuildPlaybackAction.mutateAsync();
+    setDataFeedback(result);
+  }
+
+  async function handleCleanPlayback() {
+    const result = await cleanPlaybackAction.mutateAsync();
+    setDataFeedback(result);
+  }
+
+  async function handleVerifyLibrary() {
+    const result = await verifyLibraryAction.mutateAsync();
     setDataFeedback(result);
   }
 
@@ -165,9 +184,16 @@ export default function Settings() {
             <DataStoragePanel
               isRescanning={rescanAction.isPending}
               isRebuildingThumbnails={rebuildThumbnailsAction.isPending}
+              isRebuildingPlayback={rebuildPlaybackAction.isPending}
+              isCleaningPlayback={cleanPlaybackAction.isPending}
+              isVerifyingLibrary={verifyLibraryAction.isPending}
               isResetting={resetAction.isPending}
+              libraryDiagnostics={libraryDiagnosticsQuery.data}
               onRescan={handleRescan}
               onRebuildThumbnails={handleRebuildThumbnails}
+              onRebuildPlayback={handleRebuildPlayback}
+              onCleanPlayback={handleCleanPlayback}
+              onVerifyLibrary={handleVerifyLibrary}
               onReset={handleReset}
               actionFeedback={dataFeedback}
             />

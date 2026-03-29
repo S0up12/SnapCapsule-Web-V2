@@ -38,7 +38,7 @@ router = APIRouter(prefix="/api")
 
 _RANGE_RE = re.compile(r"bytes=(?P<start>\d*)-(?P<end>\d*)$")
 _DEFAULT_PAGE_SIZE = 100
-_MAX_PAGE_SIZE = 100
+_MAX_PAGE_SIZE = 200
 
 
 @router.get(

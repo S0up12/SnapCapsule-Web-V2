@@ -61,6 +61,13 @@ function formatDecimal(value: number | null) {
   }).format(value);
 }
 
+function maskSensitiveValue(value: string | null, hidden: boolean, fallback: string = "Hidden for privacy") {
+  if (!hidden) {
+    return value;
+  }
+  return value ? fallback : value;
+}
+
 function initialsFromProfile(profile: ProfileData) {
   const source = profile.account.display_name || profile.account.username || "SC";
   return source
@@ -178,10 +185,16 @@ function EventList({
 function PlaceList({
   items,
   emptyMessage,
+  hideDetails = false,
 }: {
   items: Array<{ name: string | null; location: string | null; date: string | null; share_type: string | null }>;
   emptyMessage: string;
+  hideDetails?: boolean;
 }) {
+  if (hideDetails) {
+    return <p className="text-sm text-slate-500 dark:text-slate-400">Location details are hidden by privacy settings.</p>;
+  }
+
   if (items.length === 0) {
     return <p className="text-sm text-slate-500 dark:text-slate-400">{emptyMessage}</p>;
   }
@@ -252,9 +265,11 @@ function SubscriptionList({
 function CallList({
   items,
   hideExactTimestamps = false,
+  hideLocationDetails = false,
 }: {
   items: ProfileData["communications"]["recent_calls"];
   hideExactTimestamps?: boolean;
+  hideLocationDetails?: boolean;
 }) {
   if (items.length === 0) {
     return <p className="text-sm text-slate-500 dark:text-slate-400">No call history in this export.</p>;
@@ -282,7 +297,7 @@ function CallList({
                   .filter(Boolean)
                   .join(" · ") || "No extra details"}
               </p>
-              {(item.city || item.country) ? (
+              {!hideLocationDetails && (item.city || item.country) ? (
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {[item.city, item.country].filter(Boolean).join(", ")}
                 </p>
@@ -387,7 +402,7 @@ function SnapchatPlusCard({
 export default function Profile() {
   const profileQuery = useProfile();
   const settingsQuery = useSettings();
-  const { blurPrivateNames, hideExactTimestamps } = usePrivacyPreferences();
+  const { blurPrivateNames, hideExactTimestamps, hideLocationDetails } = usePrivacyPreferences();
 
   if (profileQuery.isLoading) {
     return (
@@ -533,21 +548,28 @@ export default function Profile() {
           <SettingsCard title="Location">
             <InfoList
               items={[
-                { label: "Latest Region", value: profile.location.latest_region },
-                { label: "Latest City", value: profile.location.latest_city },
-                { label: "Latest Country", value: profile.location.latest_country },
-                { label: "Latest Coordinate Time", value: formatDateTime(profile.location.latest_coordinate_at, hideExactTimestamps) },
-                { label: "Latest Coordinate", value: profile.location.latest_coordinate },
-                { label: "Inferred Home", value: profile.location.inferred_home },
-                { label: "Inferred Work", value: profile.location.inferred_work },
-                { label: "Declared Home", value: profile.location.declared_home },
+                { label: "Latest Region", value: maskSensitiveValue(profile.location.latest_region, hideLocationDetails) },
+                { label: "Latest City", value: maskSensitiveValue(profile.location.latest_city, hideLocationDetails) },
+                { label: "Latest Country", value: maskSensitiveValue(profile.location.latest_country, hideLocationDetails) },
+                {
+                  label: "Latest Coordinate Time",
+                  value: hideLocationDetails ? "Hidden for privacy" : formatDateTime(profile.location.latest_coordinate_at, hideExactTimestamps),
+                },
+                { label: "Latest Coordinate", value: maskSensitiveValue(profile.location.latest_coordinate, hideLocationDetails) },
+                { label: "Inferred Home", value: maskSensitiveValue(profile.location.inferred_home, hideLocationDetails) },
+                { label: "Inferred Work", value: maskSensitiveValue(profile.location.inferred_work, hideLocationDetails) },
+                { label: "Declared Home", value: maskSensitiveValue(profile.location.declared_home, hideLocationDetails) },
               ]}
             />
             <div className="mt-5 grid gap-5 xl:grid-cols-2">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Frequent Regions</h3>
                 <div className="mt-3">
-                  <ChipList items={profile.location.frequent_regions} />
+                  {hideLocationDetails ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Location details are hidden by privacy settings.</p>
+                  ) : (
+                    <ChipList items={profile.location.frequent_regions} />
+                  )}
                 </div>
               </div>
               <div>
@@ -559,7 +581,9 @@ export default function Profile() {
                   </div>
                   <div className="rounded-[1.2rem] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">School</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{profile.location.school_name || "Not available"}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {maskSensitiveValue(profile.location.school_name, hideLocationDetails) || "Not available"}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -568,19 +592,19 @@ export default function Profile() {
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Visited Places</h3>
                 <div className="mt-3">
-                  <PlaceList items={profile.location.visited_places} emptyMessage="No inferred visited places in this export." />
+                  <PlaceList items={profile.location.visited_places} emptyMessage="No inferred visited places in this export." hideDetails={hideLocationDetails} />
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Snap Map Places</h3>
                 <div className="mt-3">
-                  <PlaceList items={profile.location.snap_map_places} emptyMessage="No Snap Map places history in this export." />
+                  <PlaceList items={profile.location.snap_map_places} emptyMessage="No Snap Map places history in this export." hideDetails={hideLocationDetails} />
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Business Visits</h3>
                 <div className="mt-3">
-                  <PlaceList items={profile.location.business_visits} emptyMessage="No business visit history in this export." />
+                  <PlaceList items={profile.location.business_visits} emptyMessage="No business visit history in this export." hideDetails={hideLocationDetails} />
                 </div>
               </div>
             </div>
@@ -740,7 +764,7 @@ export default function Profile() {
               <div className="mt-5">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Recent Calls</h3>
                 <div className="mt-3">
-                  <CallList items={profile.communications.recent_calls} hideExactTimestamps={hideExactTimestamps} />
+                  <CallList items={profile.communications.recent_calls} hideExactTimestamps={hideExactTimestamps} hideLocationDetails={hideLocationDetails} />
                 </div>
               </div>
               <div className="mt-5">
@@ -779,7 +803,7 @@ export default function Profile() {
             <InfoList
               items={[
                 { label: "Title", value: profile.public_profile.title },
-                { label: "Location", value: profile.public_profile.location },
+                { label: "Location", value: maskSensitiveValue(profile.public_profile.location, hideLocationDetails) },
                 { label: "Website", value: profile.public_profile.website },
                 { label: "Created", value: formatDate(profile.public_profile.created_at) },
               ]}

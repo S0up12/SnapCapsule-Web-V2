@@ -42,6 +42,18 @@ export default function PrivacySettingsPanel({ settings, isSaving, onUpdate }: P
         </SettingRow>
 
         <SettingRow
+          title="Hide Location Details"
+          description="Mask profile location summaries, visited places, and other location-derived details."
+        >
+          <ToggleSwitch
+            label="Hide Location Details"
+            checked={settings.hide_location_details}
+            disabled={isSaving}
+            onCheckedChange={(checked) => void onUpdate({ hide_location_details: checked })}
+          />
+        </SettingRow>
+
+        <SettingRow
           title="Demo-Safe Mode"
           description="Force privacy-friendly presentation defaults by blurring names and reducing timestamp precision together."
         >

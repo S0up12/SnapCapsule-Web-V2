@@ -36,6 +36,13 @@ const GROUPING_OPTIONS = [
   { value: "day", label: "By Day" },
 ] as const;
 
+const PAGE_SIZE_OPTIONS = [
+  { value: "50", label: "50 Assets" },
+  { value: "100", label: "100 Assets" },
+  { value: "150", label: "150 Assets" },
+  { value: "200", label: "200 Assets" },
+] as const;
+
 export default function TimelineSettingsPanel({ settings, isSaving, onUpdate }: TimelineSettingsPanelProps) {
   return (
     <div className="grid gap-6">
@@ -97,6 +104,20 @@ export default function TimelineSettingsPanel({ settings, isSaving, onUpdate }: 
             disabled={isSaving}
             onChange={(value) => void onUpdate({ timeline_date_grouping: value as AppSettings["timeline_date_grouping"] })}
             options={[...GROUPING_OPTIONS]}
+          />
+        </SettingRow>
+
+        <SettingRow
+          title="Timeline Page Size"
+          description="Control how many memories are fetched in each infinite-scroll request."
+        >
+          <PopoverSelect
+            label="Timeline Page Size"
+            icon={SlidersHorizontal}
+            value={String(settings.timeline_page_size)}
+            disabled={isSaving}
+            onChange={(value) => void onUpdate({ timeline_page_size: Number(value) as AppSettings["timeline_page_size"] })}
+            options={[...PAGE_SIZE_OPTIONS]}
           />
         </SettingRow>
 

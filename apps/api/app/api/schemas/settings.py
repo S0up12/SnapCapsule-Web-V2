@@ -8,6 +8,56 @@ class SettingsStorageInfo(BaseModel):
     thumbnail_dir: str = Field(..., description="Mounted directory that stores generated thumbnail images.")
 
 
+class LibraryStorageSummary(BaseModel):
+    raw_media_bytes: int = Field(..., description="Total bytes stored under the originals media directory.")
+    thumbnail_bytes: int = Field(..., description="Total bytes stored under generated thumbnails excluding playback derivatives.")
+    playback_cache_bytes: int = Field(..., description="Total bytes stored in browser-compatible playback derivatives.")
+    ingest_workspace_bytes: int = Field(..., description="Total bytes stored under temporary ingest workspaces.")
+    ingest_upload_bytes: int = Field(..., description="Total bytes stored under uploaded archive bundles awaiting cleanup.")
+    total_bytes: int = Field(..., description="Combined bytes across the tracked storage areas.")
+
+
+class LibraryIntegritySummary(BaseModel):
+    total_assets: int = Field(..., description="Number of assets tracked in the archive database.")
+    video_assets: int = Field(..., description="Number of video assets tracked in the archive database.")
+    playback_derivatives: int = Field(..., description="Number of cached browser-compatible playback files currently on disk.")
+    orphaned_playback_files: int = Field(..., description="Playback files on disk that are not associated with a current video asset.")
+    missing_original_files: int = Field(..., description="Assets that point at original files which no longer exist.")
+    missing_thumbnail_files: int = Field(..., description="Assets that point at thumbnail files which no longer exist.")
+    missing_overlay_files: int = Field(..., description="Assets that point at overlay files which no longer exist.")
+    playback_error_assets: int = Field(..., description="Assets that recorded playback generation errors during processing.")
+
+
+class LibraryDiagnosticsResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "storage": {
+                    "raw_media_bytes": 1048576,
+                    "thumbnail_bytes": 262144,
+                    "playback_cache_bytes": 524288,
+                    "ingest_workspace_bytes": 0,
+                    "ingest_upload_bytes": 0,
+                    "total_bytes": 1835008,
+                },
+                "integrity": {
+                    "total_assets": 1200,
+                    "video_assets": 210,
+                    "playback_derivatives": 58,
+                    "orphaned_playback_files": 0,
+                    "missing_original_files": 0,
+                    "missing_thumbnail_files": 0,
+                    "missing_overlay_files": 0,
+                    "playback_error_assets": 0,
+                },
+            }
+        }
+    )
+
+    storage: LibraryStorageSummary
+    integrity: LibraryIntegritySummary
+
+
 class AppSettingsResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
@@ -24,6 +74,7 @@ class AppSettingsResponse(BaseModel):
                 "timeline_default_sort": "newest",
                 "timeline_default_filter": "all",
                 "timeline_date_grouping": "year",
+                "timeline_page_size": 100,
                 "remember_last_timeline_filters": False,
                 "show_undated_assets": True,
                 "show_stories_workspace": True,
@@ -31,6 +82,7 @@ class AppSettingsResponse(BaseModel):
                 "show_snapchat_plus_profile_card": True,
                 "blur_private_names": False,
                 "hide_exact_timestamps": False,
+                "hide_location_details": False,
                 "demo_safe_mode": False,
                 "enable_debug_logging": False,
                 "storage": {
@@ -81,6 +133,10 @@ class AppSettingsResponse(BaseModel):
         ...,
         description="Preferred date grouping for the memories timeline. Accepted values: year, month, day.",
     )
+    timeline_page_size: int = Field(
+        ...,
+        description="Preferred page size for infinite-scroll timeline loading. Accepted values: 50, 100, 150, 200.",
+    )
     remember_last_timeline_filters: bool = Field(
         ...,
         description="Whether timeline control changes should update the persisted defaults automatically.",
@@ -109,6 +165,10 @@ class AppSettingsResponse(BaseModel):
         ...,
         description="Whether chats and profile views should show date-only summaries instead of exact times.",
     )
+    hide_location_details: bool = Field(
+        ...,
+        description="Whether location-derived details in profile views should be masked or suppressed.",
+    )
     demo_safe_mode: bool = Field(
         ...,
         description="Whether privacy-friendly presentation defaults should be forced for chats and profile views.",
@@ -136,6 +196,7 @@ class AppSettingsUpdateRequest(BaseModel):
                 "timeline_default_sort": "oldest",
                 "timeline_default_filter": "favorites",
                 "timeline_date_grouping": "month",
+                "timeline_page_size": 150,
                 "remember_last_timeline_filters": True,
                 "show_undated_assets": False,
                 "show_stories_workspace": True,
@@ -143,6 +204,7 @@ class AppSettingsUpdateRequest(BaseModel):
                 "show_snapchat_plus_profile_card": True,
                 "blur_private_names": True,
                 "hide_exact_timestamps": True,
+                "hide_location_details": True,
                 "demo_safe_mode": False,
                 "enable_debug_logging": True,
             }
@@ -179,6 +241,10 @@ class AppSettingsUpdateRequest(BaseModel):
         default=None,
         description="Persisted memories date grouping. Accepted values: year, month, day.",
     )
+    timeline_page_size: int | None = Field(
+        default=None,
+        description="Persisted memories page size. Accepted values: 50, 100, 150, 200.",
+    )
     remember_last_timeline_filters: bool | None = Field(
         default=None,
         description="Persisted preference for remembering timeline control changes.",
@@ -195,6 +261,7 @@ class AppSettingsUpdateRequest(BaseModel):
     )
     blur_private_names: bool | None = Field(default=None, description="Persisted privacy blur preference for names.")
     hide_exact_timestamps: bool | None = Field(default=None, description="Persisted privacy preference for timestamp precision.")
+    hide_location_details: bool | None = Field(default=None, description="Persisted privacy preference for location-derived metadata.")
     demo_safe_mode: bool | None = Field(default=None, description="Persisted presentation-safe privacy mode.")
     enable_debug_logging: bool | None = Field(
         default=None,

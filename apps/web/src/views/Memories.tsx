@@ -46,6 +46,7 @@ export default function Memories() {
     timelineDefaultSort,
     timelineDefaultFilter,
     timelineDateGrouping,
+    timelinePageSize,
     rememberLastTimelineFilters,
     showUndatedAssets: defaultShowUndatedAssets,
     saveSettings,
@@ -71,6 +72,7 @@ export default function Memories() {
   const timelineQuery = useTimeline({
     sort,
     filter,
+    pageSize: timelinePageSize,
     includeUndated: showUndatedAssets,
     tag: activeTag,
     dateFrom: dateFrom || null,

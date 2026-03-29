@@ -356,3 +356,40 @@ def rebuild_thumbnail_cache() -> dict[str, int]:
         "requested": len(candidates),
         **result,
     }
+
+
+@celery_app.task(name="snapcapsule_core.tasks.media.rebuild_playback_cache")
+def rebuild_playback_cache() -> dict[str, int]:
+    settings = get_settings()
+    processor = MediaProcessor(settings)
+    rebuilt = 0
+    failed = 0
+
+    with session_scope() as session:
+        assets = (
+            session.query(Asset)
+            .filter(Asset.media_type == MediaType.VIDEO)
+            .order_by(Asset.created_at, Asset.id)
+            .all()
+        )
+        for asset in assets:
+            if not asset.original_path:
+                continue
+            try:
+                playback_path = processor.ensure_browser_playback(str(asset.id), asset.original_path, asset.media_type)
+                metadata = dict(asset.raw_metadata or {})
+                metadata["browser_playback"] = "transcoded" if playback_path != Path(asset.original_path) else "original"
+                metadata.pop("playback_error", None)
+                asset.raw_metadata = metadata
+                rebuilt += 1
+            except Exception as exc:
+                metadata = dict(asset.raw_metadata or {})
+                metadata["playback_error"] = summarize_exception_message(exc)
+                asset.raw_metadata = metadata
+                failed += 1
+
+    return {
+        "requested": rebuilt + failed,
+        "rebuilt": rebuilt,
+        "failed": failed,
+    }

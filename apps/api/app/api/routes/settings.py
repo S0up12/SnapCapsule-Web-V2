@@ -1,19 +1,26 @@
 from __future__ import annotations
 
+from dataclasses import asdict, is_dataclass
+
 from fastapi import APIRouter
 from snapcapsule_core.config import get_settings
 from snapcapsule_core.services.settings_store import SettingsService, SettingsStore
 from snapcapsule_core.services.system_tools import (
     clear_ingestion_cache,
+    clean_playback_cache,
+    get_library_diagnostics,
     get_system_queue_status,
     queue_library_rescan,
+    queue_playback_rebuild,
     queue_thumbnail_rebuild,
     reset_archive_data,
+    verify_library_files,
 )
 
 from apps.api.app.api.schemas import (
     AppSettingsResponse,
     AppSettingsUpdateRequest,
+    LibraryDiagnosticsResponse,
     SystemActionResponse,
     SystemStatusResponse,
 )
@@ -21,6 +28,12 @@ from apps.api.app.api.schemas import (
 router = APIRouter(prefix="/api")
 settings = get_settings()
 settings_service = SettingsService(SettingsStore(settings))
+
+
+def _to_serializable_mapping(value):
+    if is_dataclass(value):
+        return asdict(value)
+    return dict(value)
 
 
 def _serialize_settings() -> AppSettingsResponse:
@@ -38,6 +51,7 @@ def _serialize_settings() -> AppSettingsResponse:
         timeline_default_sort=stored.timeline_default_sort,
         timeline_default_filter=stored.timeline_default_filter,
         timeline_date_grouping=stored.timeline_date_grouping,
+        timeline_page_size=stored.timeline_page_size,
         remember_last_timeline_filters=stored.remember_last_timeline_filters,
         show_undated_assets=stored.show_undated_assets,
         show_stories_workspace=stored.show_stories_workspace,
@@ -45,6 +59,7 @@ def _serialize_settings() -> AppSettingsResponse:
         show_snapchat_plus_profile_card=stored.show_snapchat_plus_profile_card,
         blur_private_names=stored.blur_private_names,
         hide_exact_timestamps=stored.hide_exact_timestamps,
+        hide_location_details=stored.hide_location_details,
         demo_safe_mode=stored.demo_safe_mode,
         enable_debug_logging=stored.enable_debug_logging,
         storage={
@@ -98,6 +113,20 @@ def get_system_status() -> SystemStatusResponse:
     )
 
 
+@router.get(
+    "/system/library",
+    response_model=LibraryDiagnosticsResponse,
+    tags=["System"],
+    summary="Get library storage usage and integrity diagnostics",
+)
+def get_library_status() -> LibraryDiagnosticsResponse:
+    diagnostics = get_library_diagnostics(settings)
+    return LibraryDiagnosticsResponse(
+        storage=_to_serializable_mapping(diagnostics.storage),
+        integrity=_to_serializable_mapping(diagnostics.integrity),
+    )
+
+
 @router.post(
     "/system/rescan",
     response_model=SystemActionResponse,
@@ -123,6 +152,51 @@ def post_system_rescan() -> SystemActionResponse:
 def post_rebuild_thumbnails() -> SystemActionResponse:
     """Queue background regeneration of all image and video thumbnails in the current library."""
     result = queue_thumbnail_rebuild(settings)
+    return SystemActionResponse(
+        status=result.status,
+        message=result.message,
+        affected_items=result.affected_items,
+    )
+
+
+@router.post(
+    "/system/rebuild-playback-cache",
+    response_model=SystemActionResponse,
+    tags=["System"],
+    summary="Queue a browser-compatible playback cache rebuild",
+)
+def post_rebuild_playback_cache() -> SystemActionResponse:
+    result = queue_playback_rebuild(settings)
+    return SystemActionResponse(
+        status=result.status,
+        message=result.message,
+        affected_items=result.affected_items,
+    )
+
+
+@router.post(
+    "/system/clean-playback-cache",
+    response_model=SystemActionResponse,
+    tags=["System"],
+    summary="Remove orphaned browser playback derivatives",
+)
+def post_clean_playback_cache() -> SystemActionResponse:
+    result = clean_playback_cache(settings)
+    return SystemActionResponse(
+        status=result.status,
+        message=result.message,
+        affected_items=result.affected_items,
+    )
+
+
+@router.post(
+    "/system/verify-library",
+    response_model=SystemActionResponse,
+    tags=["System"],
+    summary="Verify library file links",
+)
+def post_verify_library() -> SystemActionResponse:
+    result = verify_library_files(settings)
     return SystemActionResponse(
         status=result.status,
         message=result.message,

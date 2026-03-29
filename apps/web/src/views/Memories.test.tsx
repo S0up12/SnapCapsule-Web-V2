@@ -91,6 +91,7 @@ describe("Memories", () => {
       timelineDefaultSort: "newest",
       timelineDefaultFilter: "all",
       timelineDateGrouping: "year",
+      timelinePageSize: 100,
       rememberLastTimelineFilters: false,
       showUndatedAssets: true,
       saveSettings: vi.fn(),
@@ -143,6 +144,7 @@ describe("Memories", () => {
       expect(useTimeline).toHaveBeenLastCalledWith({
         sort: "desc",
         filter: "all",
+        pageSize: 100,
         includeUndated: true,
         tag: null,
         dateFrom: null,
@@ -157,6 +159,7 @@ describe("Memories", () => {
       expect(useTimeline).toHaveBeenLastCalledWith({
         sort: "asc",
         filter: "all",
+        pageSize: 100,
         includeUndated: true,
         tag: null,
         dateFrom: null,
@@ -172,6 +175,7 @@ describe("Memories", () => {
       expect(useTimeline).toHaveBeenLastCalledWith({
         sort: "asc",
         filter: "favorites",
+        pageSize: 100,
         includeUndated: true,
         tag: null,
         dateFrom: null,
@@ -187,6 +191,7 @@ describe("Memories", () => {
       expect(useTimeline).toHaveBeenLastCalledWith({
         sort: "asc",
         filter: "favorites",
+        pageSize: 100,
         includeUndated: true,
         tag: "trip",
         dateFrom: null,
@@ -203,6 +208,7 @@ describe("Memories", () => {
       expect(useTimeline).toHaveBeenLastCalledWith({
         sort: "asc",
         filter: "favorites",
+        pageSize: 100,
         includeUndated: true,
         tag: "trip",
         dateFrom: null,

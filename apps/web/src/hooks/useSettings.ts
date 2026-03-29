@@ -5,6 +5,7 @@ export type VideoPreviewHoverDelay = "off" | "0.6s" | "1.2s" | "2s";
 export type TimelineDefaultSort = "newest" | "oldest";
 export type TimelineDefaultFilter = "all" | "photos" | "videos" | "favorites";
 export type TimelineDateGrouping = "year" | "month" | "day";
+export type TimelinePageSize = 50 | 100 | 150 | 200;
 
 export type AppSettings = {
   dark_mode: boolean;
@@ -19,6 +20,7 @@ export type AppSettings = {
   timeline_default_sort: TimelineDefaultSort;
   timeline_default_filter: TimelineDefaultFilter;
   timeline_date_grouping: TimelineDateGrouping;
+  timeline_page_size: TimelinePageSize;
   remember_last_timeline_filters: boolean;
   show_undated_assets: boolean;
   show_stories_workspace: boolean;
@@ -26,6 +28,7 @@ export type AppSettings = {
   show_snapchat_plus_profile_card: boolean;
   blur_private_names: boolean;
   hide_exact_timestamps: boolean;
+  hide_location_details: boolean;
   demo_safe_mode: boolean;
   enable_debug_logging: boolean;
   storage: {
@@ -49,6 +52,7 @@ export type AppSettingsUpdate = Partial<
     | "timeline_default_sort"
     | "timeline_default_filter"
     | "timeline_date_grouping"
+    | "timeline_page_size"
     | "remember_last_timeline_filters"
     | "show_undated_assets"
     | "show_stories_workspace"
@@ -56,6 +60,7 @@ export type AppSettingsUpdate = Partial<
     | "show_snapchat_plus_profile_card"
     | "blur_private_names"
     | "hide_exact_timestamps"
+    | "hide_location_details"
     | "demo_safe_mode"
     | "enable_debug_logging"
   >
@@ -76,6 +81,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   timeline_default_sort: "newest",
   timeline_default_filter: "all",
   timeline_date_grouping: "year",
+  timeline_page_size: 100,
   remember_last_timeline_filters: false,
   show_undated_assets: true,
   show_stories_workspace: true,
@@ -83,6 +89,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   show_snapchat_plus_profile_card: true,
   blur_private_names: false,
   hide_exact_timestamps: false,
+  hide_location_details: false,
   demo_safe_mode: false,
   enable_debug_logging: false,
   storage: {

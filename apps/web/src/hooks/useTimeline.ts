@@ -32,6 +32,7 @@ export type TimelineDateGrouping = "year" | "month" | "day";
 export type TimelineQueryState = {
   sort: TimelineSort;
   filter: TimelineFilter;
+  pageSize: number;
   includeUndated: boolean;
   tag: string | null;
   dateFrom: string | null;
@@ -39,11 +40,9 @@ export type TimelineQueryState = {
   search: string | null;
 };
 
-const PAGE_SIZE = 100;
-
 function buildTimelineSearchParams(offset: number, filters: TimelineQueryState) {
   const params = new URLSearchParams({
-    limit: String(PAGE_SIZE),
+    limit: String(filters.pageSize),
     offset: String(offset),
     sort: filters.sort,
   });
@@ -225,6 +224,7 @@ export function useTimeline(filters: TimelineQueryState) {
       "timeline",
       filters.sort,
       filters.filter,
+      filters.pageSize,
       filters.includeUndated,
       filters.tag ?? "",
       filters.dateFrom ?? "",
@@ -271,7 +271,7 @@ export function useTimeline(filters: TimelineQueryState) {
     assets,
     total,
     summary,
-    pageSize: PAGE_SIZE,
+    pageSize: filters.pageSize,
   };
 }
 

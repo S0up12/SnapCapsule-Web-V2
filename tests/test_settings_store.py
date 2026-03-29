@@ -20,6 +20,7 @@ def test_settings_store_normalizes_string_booleans(tmp_path):
           "timeline_default_sort": "OLDEST",
           "timeline_default_filter": "VIDEOS",
           "timeline_date_grouping": "MONTH",
+          "timeline_page_size": "200",
           "remember_last_timeline_filters": "yes",
           "show_undated_assets": "false",
           "show_stories_workspace": "yes",
@@ -27,6 +28,7 @@ def test_settings_store_normalizes_string_booleans(tmp_path):
           "show_snapchat_plus_profile_card": "1",
           "blur_private_names": "true",
           "hide_exact_timestamps": "yes",
+          "hide_location_details": "1",
           "demo_safe_mode": "0",
           "enable_debug_logging": "yes"
         }
@@ -48,6 +50,7 @@ def test_settings_store_normalizes_string_booleans(tmp_path):
     assert stored.timeline_default_sort == "oldest"
     assert stored.timeline_default_filter == "videos"
     assert stored.timeline_date_grouping == "month"
+    assert stored.timeline_page_size == 200
     assert stored.remember_last_timeline_filters is True
     assert stored.show_undated_assets is False
     assert stored.show_stories_workspace is True
@@ -55,5 +58,6 @@ def test_settings_store_normalizes_string_booleans(tmp_path):
     assert stored.show_snapchat_plus_profile_card is True
     assert stored.blur_private_names is True
     assert stored.hide_exact_timestamps is True
+    assert stored.hide_location_details is True
     assert stored.demo_safe_mode is False
     assert stored.enable_debug_logging is True

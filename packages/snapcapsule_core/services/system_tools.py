@@ -11,7 +11,7 @@ from snapcapsule_core.models import Asset, Base, IngestionJob
 from snapcapsule_core.models.enums import IngestionJobStatus, IngestionSourceKind, MediaType
 from snapcapsule_core.queue import celery_app, get_redis_client
 from snapcapsule_core.tasks.ingestion import extract_and_parse
-from snapcapsule_core.tasks.media import rebuild_thumbnail_cache
+from snapcapsule_core.tasks.media import rebuild_playback_cache, rebuild_thumbnail_cache
 
 
 @dataclass(slots=True)
@@ -28,6 +28,34 @@ class ActionResult:
     status: str
     message: str
     affected_items: int = 0
+
+
+@dataclass(slots=True)
+class LibraryStorageUsage:
+    raw_media_bytes: int
+    thumbnail_bytes: int
+    playback_cache_bytes: int
+    ingest_workspace_bytes: int
+    ingest_upload_bytes: int
+    total_bytes: int
+
+
+@dataclass(slots=True)
+class LibraryIntegrityReport:
+    total_assets: int
+    video_assets: int
+    playback_derivatives: int
+    orphaned_playback_files: int
+    missing_original_files: int
+    missing_thumbnail_files: int
+    missing_overlay_files: int
+    playback_error_assets: int
+
+
+@dataclass(slots=True)
+class LibraryDiagnostics:
+    storage: LibraryStorageUsage
+    integrity: LibraryIntegrityReport
 
 
 def get_system_queue_status() -> SystemQueueStatus:
@@ -75,6 +103,73 @@ def get_system_queue_status() -> SystemQueueStatus:
         active_tasks=0,
         queued_tasks=queued_tasks,
     )
+
+
+def _sum_directory_size(root: Path) -> int:
+    if not root.exists():
+        return 0
+    total = 0
+    for path in root.rglob("*"):
+        if path.is_file():
+            try:
+                total += path.stat().st_size
+            except OSError:
+                continue
+    return total
+
+
+def get_library_diagnostics(settings: Settings) -> LibraryDiagnostics:
+    raw_media_root = Path(settings.raw_media_dir)
+    thumbnail_root = Path(settings.thumbnail_dir)
+    playback_root = thumbnail_root / "playback"
+    workspace_root = settings.ingest_workspace_dir
+    upload_root = settings.ingest_upload_dir
+
+    playback_files = {path.stem for path in playback_root.glob("*.mp4")} if playback_root.exists() else set()
+
+    with session_scope() as session:
+        assets = session.query(Asset).all()
+
+    video_asset_ids = {str(asset.id) for asset in assets if asset.media_type == MediaType.VIDEO}
+    missing_original_files = 0
+    missing_thumbnail_files = 0
+    missing_overlay_files = 0
+    playback_error_assets = 0
+    for asset in assets:
+        if not Path(asset.original_path).exists():
+            missing_original_files += 1
+        if asset.thumbnail_path and not Path(asset.thumbnail_path).exists():
+            missing_thumbnail_files += 1
+        if asset.overlay_path and not Path(asset.overlay_path).exists():
+            missing_overlay_files += 1
+        if isinstance(asset.raw_metadata, dict) and asset.raw_metadata.get("playback_error"):
+            playback_error_assets += 1
+
+    playback_cache_bytes = _sum_directory_size(playback_root)
+    thumbnail_bytes = max(_sum_directory_size(thumbnail_root) - playback_cache_bytes, 0)
+    raw_media_bytes = _sum_directory_size(raw_media_root)
+    ingest_workspace_bytes = _sum_directory_size(workspace_root)
+    ingest_upload_bytes = _sum_directory_size(upload_root)
+
+    storage = LibraryStorageUsage(
+        raw_media_bytes=raw_media_bytes,
+        thumbnail_bytes=thumbnail_bytes,
+        playback_cache_bytes=playback_cache_bytes,
+        ingest_workspace_bytes=ingest_workspace_bytes,
+        ingest_upload_bytes=ingest_upload_bytes,
+        total_bytes=raw_media_bytes + thumbnail_bytes + playback_cache_bytes + ingest_workspace_bytes + ingest_upload_bytes,
+    )
+    integrity = LibraryIntegrityReport(
+        total_assets=len(assets),
+        video_assets=len(video_asset_ids),
+        playback_derivatives=len(playback_files),
+        orphaned_playback_files=len(playback_files - video_asset_ids),
+        missing_original_files=missing_original_files,
+        missing_thumbnail_files=missing_thumbnail_files,
+        missing_overlay_files=missing_overlay_files,
+        playback_error_assets=playback_error_assets,
+    )
+    return LibraryDiagnostics(storage=storage, integrity=integrity)
 
 
 def clear_ingestion_cache(settings: Settings) -> ActionResult:
@@ -181,4 +276,71 @@ def queue_thumbnail_rebuild(settings: Settings) -> ActionResult:
         status="accepted",
         message=f"Queued a background thumbnail rebuild for {asset_count} asset(s).",
         affected_items=asset_count,
+    )
+
+
+def queue_playback_rebuild(settings: Settings) -> ActionResult:
+    Path(settings.thumbnail_dir).mkdir(parents=True, exist_ok=True)
+
+    with session_scope() as session:
+        asset_count = (
+            session.query(Asset)
+            .filter(Asset.media_type == MediaType.VIDEO)
+            .count()
+        )
+
+    if asset_count == 0:
+        return ActionResult(
+            status="ok",
+            message="No video assets were found to rebuild playback for.",
+            affected_items=0,
+        )
+
+    rebuild_playback_cache.delay()
+    return ActionResult(
+        status="accepted",
+        message=f"Queued a background playback-cache rebuild for {asset_count} video asset(s).",
+        affected_items=asset_count,
+    )
+
+
+def clean_playback_cache(settings: Settings) -> ActionResult:
+    playback_root = Path(settings.thumbnail_dir) / "playback"
+    playback_root.mkdir(parents=True, exist_ok=True)
+
+    with session_scope() as session:
+        referenced_asset_ids = {
+            str(asset_id)
+            for asset_id, in session.query(Asset.id).filter(Asset.media_type == MediaType.VIDEO).all()
+        }
+
+    removed = 0
+    for candidate in playback_root.glob("*.mp4"):
+        if candidate.stem in referenced_asset_ids:
+            continue
+        candidate.unlink(missing_ok=True)
+        removed += 1
+
+    return ActionResult(
+        status="ok",
+        message=f"Removed {removed} orphaned playback cache file(s).",
+        affected_items=removed,
+    )
+
+
+def verify_library_files(settings: Settings) -> ActionResult:
+    diagnostics = get_library_diagnostics(settings)
+    missing_total = (
+        diagnostics.integrity.missing_original_files
+        + diagnostics.integrity.missing_thumbnail_files
+        + diagnostics.integrity.missing_overlay_files
+    )
+    return ActionResult(
+        status="ok" if missing_total == 0 else "warning",
+        message=(
+            "Library verification completed with no missing file links."
+            if missing_total == 0
+            else f"Library verification found {missing_total} missing file link(s)."
+        ),
+        affected_items=missing_total,
     )

@@ -15,6 +15,7 @@ export function useMemoryGridPreferences() {
     timelineDefaultSort: settings.timeline_default_sort,
     timelineDefaultFilter: settings.timeline_default_filter,
     timelineDateGrouping: settings.timeline_date_grouping,
+    timelinePageSize: settings.timeline_page_size,
     rememberLastTimelineFilters: settings.remember_last_timeline_filters,
     showUndatedAssets: settings.show_undated_assets,
     saveSettings: settingsQuery.saveSettings,
