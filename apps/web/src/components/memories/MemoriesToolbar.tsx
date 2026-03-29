@@ -105,7 +105,7 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
   const VideoIcon = getMemoryMediaTypeIcon("video");
 
   return (
-    <section className="flex flex-col gap-4 rounded-[1.6rem] border border-slate-200/80 bg-white/82 px-5 py-4 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.045] md:flex-row md:items-center md:justify-between">
+    <section className="flex flex-col gap-4 rounded-[1.6rem] border border-slate-200/80 bg-white px-5 py-4 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.045] md:flex-row md:items-center md:justify-between">
       <div className="flex flex-wrap items-center gap-2">
         <label className="relative min-w-[15rem] flex-1 md:max-w-[22rem]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />

@@ -259,10 +259,10 @@ export default function VirtualTimelineGrid({
 
   return (
     <>
-      <div className="min-h-0 flex-1 rounded-[1.75rem] border border-slate-200/70 bg-white/75 p-3 shadow-[0_24px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950/55 dark:shadow-black/20 sm:p-4">
+      <div className="min-h-0 flex-1">
         <div
           ref={handleScrollElementRef}
-          className="relative h-full min-h-0 overflow-auto overscroll-contain rounded-[1.35rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,248,252,0.96))] p-3 [scrollbar-gutter:stable] dark:border-white/5 dark:bg-[linear-gradient(180deg,rgba(8,14,24,0.95),rgba(4,8,14,0.98))]"
+          className="relative h-full min-h-0 overflow-auto overscroll-contain rounded-[1.65rem] border border-slate-200/80 bg-white p-3 shadow-[0_24px_60px_rgba(15,23,42,0.08)] [scrollbar-gutter:stable] dark:border-white/10 dark:bg-slate-950/55 dark:shadow-black/20 sm:p-4"
         >
           <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {

@@ -148,8 +148,9 @@ export default function Memories() {
   }, [assets, selectionMode]);
 
   return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1740px] flex-col gap-5 overflow-hidden">
-      <MemoriesToolbar
+    <section className="flex h-full min-h-0 w-full overflow-hidden rounded-[1.9rem] border border-slate-200/80 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.1)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-black/25">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-5">
+        <MemoriesToolbar
         sort={sort}
         filter={filter}
         grouping={grouping}
@@ -203,78 +204,79 @@ export default function Memories() {
             return !current;
           });
         }}
-      />
-
-      {selectionMode && selectedAssetIds.length > 0 ? (
-        <BulkSelectionBar
-          selectedCount={selectedAssetIds.length}
-          isSaving={bulkSetFavorite.isPending || bulkUpdateTags.isPending}
-          onClearSelection={() => {
-            setSelectedAssetIds([]);
-            setSelectionAnchorAssetId(null);
-          }}
-          onFavoriteSelected={async () => {
-            await bulkSetFavorite.mutateAsync({ assets: selectedAssets, isFavorite: true });
-            setSelectedAssetIds([]);
-            setSelectionAnchorAssetId(null);
-          }}
-          onUnfavoriteSelected={async () => {
-            await bulkSetFavorite.mutateAsync({ assets: selectedAssets, isFavorite: false });
-            setSelectedAssetIds([]);
-            setSelectionAnchorAssetId(null);
-          }}
-          onAddTags={() => setBulkTagMode("add")}
-          onRemoveTags={() => setBulkTagMode("remove")}
         />
-      ) : null}
 
-      {isError ? (
-        <div className="rounded-[1.25rem] border border-rose-300/40 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100">
-          {error instanceof Error ? error.message : "Failed to load memories."}
-        </div>
-      ) : null}
+        {selectionMode && selectedAssetIds.length > 0 ? (
+          <BulkSelectionBar
+            selectedCount={selectedAssetIds.length}
+            isSaving={bulkSetFavorite.isPending || bulkUpdateTags.isPending}
+            onClearSelection={() => {
+              setSelectedAssetIds([]);
+              setSelectionAnchorAssetId(null);
+            }}
+            onFavoriteSelected={async () => {
+              await bulkSetFavorite.mutateAsync({ assets: selectedAssets, isFavorite: true });
+              setSelectedAssetIds([]);
+              setSelectionAnchorAssetId(null);
+            }}
+            onUnfavoriteSelected={async () => {
+              await bulkSetFavorite.mutateAsync({ assets: selectedAssets, isFavorite: false });
+              setSelectedAssetIds([]);
+              setSelectionAnchorAssetId(null);
+            }}
+            onAddTags={() => setBulkTagMode("add")}
+            onRemoveTags={() => setBulkTagMode("remove")}
+          />
+        ) : null}
 
-      {!isError ? (
-        <VirtualTimelineGrid
-          assets={assets}
-          total={total}
-          autoplayVideosInGrid={autoplayVideosInGrid}
-          preferBrowserPlayback={preferBrowserPlayback}
-          muteVideoPreviews={muteVideoPreviews}
-          loopVideoPreviews={loopVideoPreviews}
-          hoverPreviewDelayMs={hoverPreviewDelayMs}
-          defaultGridSize={defaultGridSize}
-          grouping={grouping}
-          hasNextPage={Boolean(hasNextPage)}
-          isFetchingNextPage={isFetchingNextPage}
-          isInitialLoading={isLoading}
-          fetchNextPage={fetchNextPage}
-          selectionMode={selectionMode}
-          selectedAssetIds={selectedAssetIdsSet}
-          onToggleSelection={(asset, shiftKey) => {
-            const nextSelection = applyMemorySelection({
-              currentSelectedAssetIds: selectedAssetIds,
-              assets,
-              clickedAssetId: asset.id,
-              shiftKey,
-              anchorAssetId: selectionAnchorAssetId,
-            });
-            setSelectedAssetIds(nextSelection.selectedAssetIds);
-            setSelectionAnchorAssetId(nextSelection.anchorAssetId);
-          }}
-          onOpenAsset={(index) => {
-            startTransition(() => {
-              setSelectedIndex(index);
-            });
-          }}
-          onToggleFavorite={async (asset) => {
-            await toggleFavorite.mutateAsync(asset.id);
-          }}
-          onEditTags={(asset) => {
-            setTagEditorAsset(asset);
-          }}
-        />
-      ) : null}
+        {isError ? (
+          <div className="rounded-[1.25rem] border border-rose-300/40 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100">
+            {error instanceof Error ? error.message : "Failed to load memories."}
+          </div>
+        ) : null}
+
+        {!isError ? (
+          <VirtualTimelineGrid
+            assets={assets}
+            total={total}
+            autoplayVideosInGrid={autoplayVideosInGrid}
+            preferBrowserPlayback={preferBrowserPlayback}
+            muteVideoPreviews={muteVideoPreviews}
+            loopVideoPreviews={loopVideoPreviews}
+            hoverPreviewDelayMs={hoverPreviewDelayMs}
+            defaultGridSize={defaultGridSize}
+            grouping={grouping}
+            hasNextPage={Boolean(hasNextPage)}
+            isFetchingNextPage={isFetchingNextPage}
+            isInitialLoading={isLoading}
+            fetchNextPage={fetchNextPage}
+            selectionMode={selectionMode}
+            selectedAssetIds={selectedAssetIdsSet}
+            onToggleSelection={(asset, shiftKey) => {
+              const nextSelection = applyMemorySelection({
+                currentSelectedAssetIds: selectedAssetIds,
+                assets,
+                clickedAssetId: asset.id,
+                shiftKey,
+                anchorAssetId: selectionAnchorAssetId,
+              });
+              setSelectedAssetIds(nextSelection.selectedAssetIds);
+              setSelectionAnchorAssetId(nextSelection.anchorAssetId);
+            }}
+            onOpenAsset={(index) => {
+              startTransition(() => {
+                setSelectedIndex(index);
+              });
+            }}
+            onToggleFavorite={async (asset) => {
+              await toggleFavorite.mutateAsync(asset.id);
+            }}
+            onEditTags={(asset) => {
+              setTagEditorAsset(asset);
+            }}
+          />
+        ) : null}
+      </div>
 
       {(isFetchingNextPage || toggleFavorite.isPending || bulkSetFavorite.isPending || bulkUpdateTags.isPending || updateAssetTags.isPending || deleteTimelineTag.isPending) && assets.length > 0 ? (
         <div className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/92 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur dark:border-white/10 dark:bg-slate-950/90 dark:text-slate-200 dark:shadow-black/30">
@@ -348,6 +350,6 @@ export default function Memories() {
           }}
         />
       ) : null}
-    </div>
+    </section>
   );
 }
