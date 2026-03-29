@@ -1,14 +1,15 @@
 import { useMemo } from "react";
 
-import { useSettings } from "./hooks/useSettings";
+import { resolveAppSettings, useSettings } from "./hooks/useSettings";
 import { useStories } from "./hooks/useStories";
 
 export function useStoriesWorkspaceVisibility() {
   const settingsQuery = useSettings();
   const storiesQuery = useStories();
+  const settings = resolveAppSettings(settingsQuery.data);
 
-  const showStoriesWorkspace = settingsQuery.data?.show_stories_workspace ?? true;
-  const showStoryActivity = settingsQuery.data?.show_story_activity ?? true;
+  const showStoriesWorkspace = settings.show_stories_workspace;
+  const showStoryActivity = settings.show_story_activity;
 
   const visibility = useMemo(() => {
     const hasStoryMedia = (storiesQuery.data?.total_story_items ?? 0) > 0;

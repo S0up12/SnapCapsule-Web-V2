@@ -1,6 +1,8 @@
 import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
+  CalendarRange,
+  CircleOff,
   Images,
   MousePointerSquareDashed,
   Search,
@@ -11,13 +13,15 @@ import {
 import { useMemo } from "react";
 
 import PopoverSelect from "../controls/PopoverSelect";
-import type { TimelineFilter, TimelineSort } from "../../hooks/useTimeline";
+import type { TimelineDateGrouping, TimelineFilter, TimelineSort } from "../../hooks/useTimeline";
 import DateRangePicker from "./DateRangePicker";
 import { getMemoryMediaTypeIcon } from "./mediaTypeIcons";
 
 type MemoriesToolbarProps = {
   sort: TimelineSort;
   filter: TimelineFilter;
+  grouping: TimelineDateGrouping;
+  showUndatedAssets: boolean;
   activeTag: string | null;
   dateFrom: string;
   dateTo: string;
@@ -31,6 +35,8 @@ type MemoriesToolbarProps = {
   availableTags: string[];
   onSortChange: (value: TimelineSort) => void;
   onFilterChange: (value: TimelineFilter) => void;
+  onGroupingChange: (value: TimelineDateGrouping) => void;
+  onShowUndatedChange: (value: boolean) => void;
   onTagChange: (value: string | null) => void;
   onDateChange: (value: { dateFrom: string; dateTo: string }) => void;
   onSearchChange: (value: string) => void;
@@ -43,6 +49,8 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
   const {
     sort,
     filter,
+    grouping,
+    showUndatedAssets,
     activeTag,
     dateFrom,
     dateTo,
@@ -56,6 +64,8 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
     availableTags,
     onSortChange,
     onFilterChange,
+    onGroupingChange,
+    onShowUndatedChange,
     onTagChange,
     onDateChange,
     onSearchChange,
@@ -82,6 +92,14 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
   const tagOptions = useMemo(
     () => [{ value: "", label: "All Tags" }, ...availableTags.map((tag) => ({ value: tag, label: tag }))],
     [availableTags],
+  );
+  const groupingOptions = useMemo<Array<{ value: TimelineDateGrouping; label: string }>>(
+    () => [
+      { value: "year", label: "Group By Year" },
+      { value: "month", label: "Group By Month" },
+      { value: "day", label: "Group By Day" },
+    ],
+    [],
   );
   const PhotoIcon = getMemoryMediaTypeIcon("image");
   const VideoIcon = getMemoryMediaTypeIcon("video");
@@ -131,7 +149,27 @@ export default function MemoriesToolbar(props: MemoriesToolbarProps) {
           onChange={(value) => onTagChange(value || null)}
           options={tagOptions}
         />
+        <PopoverSelect
+          label="Group memories"
+          icon={CalendarRange}
+          value={grouping}
+          onChange={(value) => onGroupingChange(value as TimelineDateGrouping)}
+          options={groupingOptions}
+        />
         <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={onDateChange} />
+        <button
+          type="button"
+          onClick={() => onShowUndatedChange(!showUndatedAssets)}
+          className={[
+            "inline-flex items-center gap-2 rounded-[1rem] border px-3 py-2 text-sm font-medium shadow-sm transition",
+            showUndatedAssets
+              ? "border-slate-200/80 bg-white/90 text-slate-700 hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-slate-950/65 dark:text-slate-200 dark:hover:text-white"
+              : "border-amber-300/25 bg-amber-400/[0.12] text-amber-950 dark:text-amber-100",
+          ].join(" ")}
+        >
+          <CircleOff className="h-4 w-4" />
+          {showUndatedAssets ? "Undated Visible" : "Undated Hidden"}
+        </button>
         <button
           type="button"
           onClick={onToggleSelectionMode}

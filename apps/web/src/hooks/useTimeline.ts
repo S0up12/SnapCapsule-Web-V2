@@ -27,10 +27,12 @@ type TimelinePage = {
 
 export type TimelineSort = "desc" | "asc";
 export type TimelineFilter = "all" | "favorites" | "photos" | "videos";
+export type TimelineDateGrouping = "year" | "month" | "day";
 
 export type TimelineQueryState = {
   sort: TimelineSort;
   filter: TimelineFilter;
+  includeUndated: boolean;
   tag: string | null;
   dateFrom: string | null;
   dateTo: string | null;
@@ -66,6 +68,9 @@ function buildTimelineSearchParams(offset: number, filters: TimelineQueryState) 
   }
   if (filters.search) {
     params.set("search", filters.search);
+  }
+  if (!filters.includeUndated) {
+    params.set("include_undated", "false");
   }
 
   return params;
@@ -124,7 +129,7 @@ export function formatTimelineDate(value: string | null) {
   };
 }
 
-export function formatTimelineGroup(value: string | null) {
+export function formatTimelineGroup(value: string | null, grouping: TimelineDateGrouping) {
   if (!value) {
     return {
       key: "undated",
@@ -139,6 +144,21 @@ export function formatTimelineGroup(value: string | null) {
       key: "undated",
       label: "Undated",
       shortLabel: "Unknown date",
+    };
+  }
+
+  if (grouping === "day") {
+    return formatTimelineDate(value);
+  }
+
+  if (grouping === "month") {
+    return {
+      key: `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`,
+      label: new Intl.DateTimeFormat(undefined, {
+        month: "long",
+        year: "numeric",
+      }).format(date),
+      shortLabel: "Month",
     };
   }
 
@@ -187,13 +207,30 @@ export function getPlaybackUrl(assetId: string, cacheKey?: string | number | boo
   return withQueryParams(`/api/asset/${assetId}/playback`, { v: cacheKey });
 }
 
+export function getVideoStreamUrl(
+  assetId: string,
+  preferBrowserPlayback: boolean,
+  cacheKey?: string | number | boolean | null,
+) {
+  return preferBrowserPlayback ? getPlaybackUrl(assetId, cacheKey) : getOriginalUrl(assetId, cacheKey);
+}
+
 export function getOverlayUrl(assetId: string, cacheKey?: string | number | boolean | null) {
   return withQueryParams(`/api/asset/${assetId}/overlay`, { v: cacheKey });
 }
 
 export function useTimeline(filters: TimelineQueryState) {
   const query = useInfiniteQuery({
-    queryKey: ["timeline", filters.sort, filters.filter, filters.tag ?? "", filters.dateFrom ?? "", filters.dateTo ?? "", filters.search ?? ""],
+    queryKey: [
+      "timeline",
+      filters.sort,
+      filters.filter,
+      filters.includeUndated,
+      filters.tag ?? "",
+      filters.dateFrom ?? "",
+      filters.dateTo ?? "",
+      filters.search ?? "",
+    ],
     initialPageParam: 0,
     queryFn: ({ pageParam }) => fetchTimelinePage(pageParam, filters),
     getNextPageParam: (lastPage, pages) => {

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 from snapcapsule_core.config import get_settings
-from snapcapsule_core.services.settings_store import SettingsStore
+from snapcapsule_core.services.settings_store import SettingsService, SettingsStore
 from snapcapsule_core.services.system_tools import (
     clear_ingestion_cache,
     get_system_queue_status,
@@ -20,19 +20,32 @@ from apps.api.app.api.schemas import (
 
 router = APIRouter(prefix="/api")
 settings = get_settings()
-settings_store = SettingsStore(settings)
+settings_service = SettingsService(SettingsStore(settings))
 
 
 def _serialize_settings() -> AppSettingsResponse:
-    stored = settings_store.load()
+    stored = settings_service.load()
     return AppSettingsResponse(
         dark_mode=stored.dark_mode,
+        prefer_browser_playback=stored.prefer_browser_playback,
         autoplay_videos_in_grid=stored.autoplay_videos_in_grid,
+        mute_video_previews=stored.mute_video_previews,
+        loop_video_previews=stored.loop_video_previews,
+        video_preview_hover_delay=stored.video_preview_hover_delay,
+        autoplay_videos_in_lightbox=stored.autoplay_videos_in_lightbox,
         show_memory_overlays=stored.show_memory_overlays,
         default_grid_size=stored.default_grid_size,
+        timeline_default_sort=stored.timeline_default_sort,
+        timeline_default_filter=stored.timeline_default_filter,
+        timeline_date_grouping=stored.timeline_date_grouping,
+        remember_last_timeline_filters=stored.remember_last_timeline_filters,
+        show_undated_assets=stored.show_undated_assets,
         show_stories_workspace=stored.show_stories_workspace,
         show_story_activity=stored.show_story_activity,
         show_snapchat_plus_profile_card=stored.show_snapchat_plus_profile_card,
+        blur_private_names=stored.blur_private_names,
+        hide_exact_timestamps=stored.hide_exact_timestamps,
+        demo_safe_mode=stored.demo_safe_mode,
         enable_debug_logging=stored.enable_debug_logging,
         storage={
             "raw_media_dir": settings.raw_media_dir,
@@ -61,7 +74,7 @@ def get_app_settings() -> AppSettingsResponse:
 def save_app_settings(payload: AppSettingsUpdateRequest) -> AppSettingsResponse:
     """Persist UI preferences and backend debug settings for the current development environment."""
     updates = payload.model_dump(exclude_none=True)
-    settings_store.save(updates)
+    settings_service.save(updates)
     return _serialize_settings()
 
 
@@ -74,7 +87,7 @@ def save_app_settings(payload: AppSettingsUpdateRequest) -> AppSettingsResponse:
 def get_system_status() -> SystemStatusResponse:
     """Return a small operational snapshot for developer-facing settings panels and admin cards."""
     queue_status = get_system_queue_status()
-    stored = settings_store.load()
+    stored = settings_service.load()
     return SystemStatusResponse(
         worker_state=queue_status.worker_state,
         worker_label=queue_status.worker_label,

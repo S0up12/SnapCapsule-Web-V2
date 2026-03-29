@@ -4,7 +4,7 @@ import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } fr
 
 import type { AppSettings } from "../hooks/useSettings";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
-import { formatTimelineGroup, type TimelineAsset } from "../hooks/useTimeline";
+import { formatTimelineGroup, type TimelineAsset, type TimelineDateGrouping } from "../hooks/useTimeline";
 import AssetContextMenu from "./memories/AssetContextMenu";
 import TimelineTile from "./memories/TimelineTile";
 import { EmptyState, LoadingState } from "./memories/TimelineGridStates";
@@ -17,7 +17,12 @@ type VirtualTimelineGridProps = {
   assets: TimelineAsset[];
   total: number;
   autoplayVideosInGrid: boolean;
+  preferBrowserPlayback: boolean;
+  muteVideoPreviews: boolean;
+  loopVideoPreviews: boolean;
+  hoverPreviewDelayMs: number | null;
   defaultGridSize: AppSettings["default_grid_size"];
+  grouping: TimelineDateGrouping;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   isInitialLoading: boolean;
@@ -106,7 +111,12 @@ export default function VirtualTimelineGrid({
   assets,
   total,
   autoplayVideosInGrid,
+  preferBrowserPlayback,
+  muteVideoPreviews,
+  loopVideoPreviews,
+  hoverPreviewDelayMs,
   defaultGridSize,
+  grouping,
   hasNextPage,
   isFetchingNextPage,
   isInitialLoading,
@@ -188,7 +198,7 @@ export default function VirtualTimelineGrid({
   const { rows, stickyIndexes } = useMemo(() => {
     const grouped = new Map<string, { label: string; shortLabel: string; items: Array<{ asset: TimelineAsset; index: number }> }>();
     for (const [index, asset] of assets.entries()) {
-      const formatted = formatTimelineGroup(asset.taken_at);
+      const formatted = formatTimelineGroup(asset.taken_at, grouping);
       const group = grouped.get(formatted.key) ?? { label: formatted.label, shortLabel: formatted.shortLabel, items: [] };
       group.items.push({ asset, index });
       grouped.set(formatted.key, group);
@@ -204,7 +214,7 @@ export default function VirtualTimelineGrid({
       }
     }
     return { rows: nextRows, stickyIndexes: nextStickyIndexes };
-  }, [assets, columnCount]);
+  }, [assets, columnCount, grouping]);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -290,6 +300,10 @@ export default function VirtualTimelineGrid({
                           width={tileWidth}
                           height={tileHeight}
                           autoplayVideosInGrid={autoplayVideosInGrid}
+                          preferBrowserPlayback={preferBrowserPlayback}
+                          muteVideoPreviews={muteVideoPreviews}
+                          loopVideoPreviews={loopVideoPreviews}
+                          hoverPreviewDelayMs={hoverPreviewDelayMs}
                           showOverlays={showOverlays}
                           selectionMode={selectionMode}
                           isSelected={selectedAssetIds.has(asset.id)}

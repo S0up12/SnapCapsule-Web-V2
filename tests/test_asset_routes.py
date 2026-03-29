@@ -24,7 +24,7 @@ def _build_asset_app(SessionLocal, session_scope, monkeypatch) -> TestClient:
 def _create_memory_asset(
     session,
     *,
-    taken_at: datetime,
+    taken_at: datetime | None,
     media_type: MediaType = MediaType.IMAGE,
     tags=None,
     is_favorite=False,
@@ -197,6 +197,32 @@ def test_get_timeline_route_searches_tags_filenames_and_date_text(db_session_fac
     assert client.get("/api/timeline", params={"search": "aurora"}).json()["items"][0]["id"] == str(matching.id)
     assert client.get("/api/timeline", params={"search": "sunrise-beach"}).json()["items"][0]["id"] == str(matching.id)
     assert client.get("/api/timeline", params={"search": "june 15"}).json()["items"][0]["id"] == str(matching.id)
+
+
+def test_get_timeline_route_can_hide_undated_assets(db_session_factory, monkeypatch):
+    SessionLocal, session_scope = db_session_factory
+    with session_scope() as session:
+        dated = _create_memory_asset(
+            session,
+            taken_at=datetime(2024, 6, 15, 13, 0, tzinfo=UTC),
+            media_type=MediaType.IMAGE,
+        )
+        _create_memory_asset(
+            session,
+            taken_at=None,
+            media_type=MediaType.IMAGE,
+        )
+
+    client = _build_asset_app(SessionLocal, session_scope, monkeypatch)
+
+    visible_response = client.get("/api/timeline")
+    hidden_response = client.get("/api/timeline", params={"include_undated": "false"})
+
+    assert visible_response.status_code == 200
+    assert hidden_response.status_code == 200
+    assert visible_response.json()["total"] == 2
+    assert hidden_response.json()["total"] == 1
+    assert hidden_response.json()["items"][0]["id"] == str(dated.id)
 
 
 def test_get_asset_playback_route_streams_browser_compatible_video(db_session_factory, monkeypatch, tmp_path: Path):

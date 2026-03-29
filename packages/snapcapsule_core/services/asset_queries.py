@@ -17,6 +17,7 @@ class TimelineFilters:
     sort_direction: str = "desc"
     media_type: MediaType | None = None
     favorite_only: bool = False
+    include_undated: bool = True
     tags: tuple[str, ...] = ()
     date_from: date | None = None
     date_to: date | None = None
@@ -108,6 +109,8 @@ def _base_asset_filters(filters: TimelineFilters, timeline_taken_at):
         clauses.append(Asset.media_type == filters.media_type)
     if filters.favorite_only:
         clauses.append(Asset.is_favorite.is_(True))
+    if not filters.include_undated:
+        clauses.append(timeline_taken_at.is_not(None))
     for tag in filters.tags:
         clauses.append(tags_jsonb.contains([tag]))
     if filters.date_from is not None:
@@ -136,7 +139,8 @@ def _base_asset_filters(filters: TimelineFilters, timeline_taken_at):
 
 def build_timeline_query(*, limit: int, offset: int, filters: TimelineFilters) -> Select:
     memory_timeline = _memory_timeline_subquery()
-    timeline_taken_at = func.coalesce(memory_timeline.c.taken_at, Asset.taken_at, Asset.created_at)
+    captured_taken_at = func.coalesce(memory_timeline.c.taken_at, Asset.taken_at)
+    timeline_taken_at = func.coalesce(captured_taken_at, Asset.created_at)
     memory_position = memory_timeline.c.position
     order_by = (
         timeline_taken_at.asc(),
@@ -149,10 +153,10 @@ def build_timeline_query(*, limit: int, offset: int, filters: TimelineFilters) -
     )
 
     return (
-        select(Asset.id, timeline_taken_at, Asset.media_type, Asset.is_favorite, Asset.tags, Asset.overlay_path)
+        select(Asset.id, captured_taken_at, Asset.media_type, Asset.is_favorite, Asset.tags, Asset.overlay_path)
         .select_from(Asset)
         .outerjoin(memory_timeline, memory_timeline.c.asset_id == Asset.id)
-        .where(*_base_asset_filters(filters, timeline_taken_at))
+        .where(*_base_asset_filters(filters, captured_taken_at))
         .order_by(*order_by)
         .limit(limit)
         .offset(offset)
@@ -176,7 +180,7 @@ def list_timeline_assets(session: Session, *, limit: int, offset: int, filters: 
 
 def get_timeline_summary(session: Session, filters: TimelineFilters) -> TimelineSummaryRecord:
     memory_timeline = _memory_timeline_subquery()
-    timeline_taken_at = func.coalesce(memory_timeline.c.taken_at, Asset.taken_at, Asset.created_at)
+    captured_taken_at = func.coalesce(memory_timeline.c.taken_at, Asset.taken_at)
     row = session.execute(
         select(
             func.count().label("total_assets"),
@@ -185,7 +189,7 @@ def get_timeline_summary(session: Session, filters: TimelineFilters) -> Timeline
         )
         .select_from(Asset)
         .outerjoin(memory_timeline, memory_timeline.c.asset_id == Asset.id)
-        .where(*_base_asset_filters(filters, timeline_taken_at))
+        .where(*_base_asset_filters(filters, captured_taken_at))
     ).one()
 
     return TimelineSummaryRecord(

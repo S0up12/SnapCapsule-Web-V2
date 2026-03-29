@@ -3,9 +3,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Star, Tags } from "lucide-react";
 
 import { getMemoryMediaTypeIcon } from "./mediaTypeIcons";
-import { getOverlayUrl, getPlaybackUrl, getThumbnailUrl, type TimelineAsset } from "../../hooks/useTimeline";
-
-const VIDEO_HOVER_PREVIEW_DELAY_MS = 1200;
+import { getOverlayUrl, getThumbnailUrl, getVideoStreamUrl, type TimelineAsset } from "../../hooks/useTimeline";
 
 export default memo(function TimelineTile({
   asset,
@@ -13,6 +11,10 @@ export default memo(function TimelineTile({
   width,
   height,
   autoplayVideosInGrid,
+  preferBrowserPlayback,
+  muteVideoPreviews,
+  loopVideoPreviews,
+  hoverPreviewDelayMs,
   showOverlays,
   selectionMode,
   isSelected,
@@ -27,6 +29,10 @@ export default memo(function TimelineTile({
   width: number;
   height: number;
   autoplayVideosInGrid: boolean;
+  preferBrowserPlayback: boolean;
+  muteVideoPreviews: boolean;
+  loopVideoPreviews: boolean;
+  hoverPreviewDelayMs: number | null;
   showOverlays: boolean;
   selectionMode: boolean;
   isSelected: boolean;
@@ -38,9 +44,9 @@ export default memo(function TimelineTile({
 }) {
   const hoverPreviewTimeoutRef = useRef<number | null>(null);
   const [isPreviewingVideo, setIsPreviewingVideo] = useState(false);
-  const canPreviewVideo = autoplayVideosInGrid && asset.media_type === "video";
+  const canPreviewVideo = autoplayVideosInGrid && hoverPreviewDelayMs !== null && asset.media_type === "video";
   const thumbnailUrl = getThumbnailUrl(asset.id, asset.has_overlay ? 1 : 0, showOverlays);
-  const mediaUrl = getPlaybackUrl(asset.id, asset.has_overlay ? 1 : 0);
+  const mediaUrl = getVideoStreamUrl(asset.id, preferBrowserPlayback, asset.has_overlay ? 1 : 0);
   const overlayUrl = asset.has_overlay ? getOverlayUrl(asset.id, 1) : null;
   const MediaTypeIcon = getMemoryMediaTypeIcon(asset.media_type);
 
@@ -72,7 +78,7 @@ export default memo(function TimelineTile({
     hoverPreviewTimeoutRef.current = window.setTimeout(() => {
       setIsPreviewingVideo(true);
       hoverPreviewTimeoutRef.current = null;
-    }, VIDEO_HOVER_PREVIEW_DELAY_MS);
+    }, hoverPreviewDelayMs);
   }
 
   function handleMouseLeave() {
@@ -122,8 +128,8 @@ export default memo(function TimelineTile({
             <video
               src={mediaUrl}
               poster={thumbnailUrl}
-              muted
-              loop
+              muted={muteVideoPreviews}
+              loop={loopVideoPreviews}
               playsInline
               autoPlay
               preload="metadata"

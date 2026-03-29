@@ -5,6 +5,8 @@ import Chats from "./Chats";
 const useChats = vi.fn();
 const useChatMessages = vi.fn();
 const useShowMemoryOverlays = vi.fn();
+const usePrivacyPreferences = vi.fn();
+const useSettings = vi.fn();
 
 vi.mock("../hooks/useChats", async () => {
   const actual = await vi.importActual<typeof import("../hooks/useChats")>("../hooks/useChats");
@@ -17,6 +19,15 @@ vi.mock("../hooks/useChats", async () => {
 
 vi.mock("../hooks/useOverlayPreference", () => ({
   useShowMemoryOverlays: () => useShowMemoryOverlays(),
+}));
+
+vi.mock("../hooks/usePrivacyPreferences", () => ({
+  usePrivacyPreferences: () => usePrivacyPreferences(),
+}));
+
+vi.mock("../hooks/useSettings", () => ({
+  useSettings: () => useSettings(),
+  resolveAppSettings: (value: unknown) => value,
 }));
 
 vi.mock("../components/controls/PopoverSelect", () => ({
@@ -38,6 +49,17 @@ describe("Chats", () => {
     });
 
     useShowMemoryOverlays.mockReturnValue(true);
+    usePrivacyPreferences.mockReturnValue({
+      blurPrivateNames: false,
+      hideExactTimestamps: false,
+      demoSafeMode: false,
+    });
+    useSettings.mockReturnValue({
+      data: {
+        prefer_browser_playback: true,
+        autoplay_videos_in_lightbox: true,
+      },
+    });
     useChats.mockReturnValue({
       data: {
         items: [

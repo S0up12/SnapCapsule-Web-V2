@@ -45,6 +45,7 @@ describe("timeline search params", () => {
           useTimeline({
             sort: "desc",
             filter: "all",
+            includeUndated: true,
             tag: null,
             dateFrom: null,
             dateTo: null,

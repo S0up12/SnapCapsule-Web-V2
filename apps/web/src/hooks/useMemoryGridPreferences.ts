@@ -1,32 +1,23 @@
-import { useSettings, type AppSettings } from "./useSettings";
-
-const AUTOPLAY_VIDEOS_IN_GRID_STORAGE_KEY = "snapcapsule:autoplay-videos-in-grid";
-const DEFAULT_GRID_SIZE_STORAGE_KEY = "snapcapsule:default-grid-size";
-
-function getStoredAutoplayPreference() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-  return window.localStorage.getItem(AUTOPLAY_VIDEOS_IN_GRID_STORAGE_KEY) === "true";
-}
-
-function getStoredGridSizePreference(): AppSettings["default_grid_size"] {
-  if (typeof window === "undefined") {
-    return "medium";
-  }
-
-  const value = window.localStorage.getItem(DEFAULT_GRID_SIZE_STORAGE_KEY);
-  if (value === "small" || value === "medium" || value === "large") {
-    return value;
-  }
-  return "medium";
-}
+import { resolveAppSettings, useSettings } from "./useSettings";
 
 export function useMemoryGridPreferences() {
   const settingsQuery = useSettings();
+  const settings = resolveAppSettings(settingsQuery.data);
 
   return {
-    autoplayVideosInGrid: settingsQuery.data?.autoplay_videos_in_grid ?? getStoredAutoplayPreference(),
-    defaultGridSize: settingsQuery.data?.default_grid_size ?? getStoredGridSizePreference(),
+    autoplayVideosInGrid: settings.autoplay_videos_in_grid,
+    defaultGridSize: settings.default_grid_size,
+    preferBrowserPlayback: settings.prefer_browser_playback,
+    muteVideoPreviews: settings.mute_video_previews,
+    loopVideoPreviews: settings.loop_video_previews,
+    videoPreviewHoverDelay: settings.video_preview_hover_delay,
+    autoplayVideosInLightbox: settings.autoplay_videos_in_lightbox,
+    timelineDefaultSort: settings.timeline_default_sort,
+    timelineDefaultFilter: settings.timeline_default_filter,
+    timelineDateGrouping: settings.timeline_date_grouping,
+    rememberLastTimelineFilters: settings.remember_last_timeline_filters,
+    showUndatedAssets: settings.show_undated_assets,
+    saveSettings: settingsQuery.saveSettings,
+    isLoading: settingsQuery.isLoading,
   };
 }

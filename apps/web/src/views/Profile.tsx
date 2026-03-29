@@ -10,8 +10,10 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import PrivacyText from "../components/privacy/PrivacyText";
 import SettingsCard from "../components/settings/SettingsCard";
 import { useProfile, type ProfileData, type ProfileEventLabel, type ProfileEventValue, type ProfileSecurityDownload } from "../hooks/useProfile";
+import { usePrivacyPreferences } from "../hooks/usePrivacyPreferences";
 import { useSettings } from "../hooks/useSettings";
 
 function formatDate(value: string | null) {
@@ -26,9 +28,13 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
-function formatDateTime(value: string | null) {
+function formatDateTime(value: string | null, hideExactTimestamps: boolean = false) {
   if (!value) {
     return "Unknown";
+  }
+
+  if (hideExactTimestamps) {
+    return formatDate(value);
   }
 
   return new Intl.DateTimeFormat(undefined, {
@@ -130,9 +136,11 @@ function ChipList({
 function EventList({
   items,
   scrollAfter = 3,
+  hideExactTimestamps = false,
 }: {
   items: Array<ProfileEventLabel | ProfileEventValue | ProfileSecurityDownload>;
   scrollAfter?: number;
+  hideExactTimestamps?: boolean;
 }) {
   if (items.length === 0) {
     return <p className="text-sm text-slate-500 dark:text-slate-400">No exported history in this section.</p>;
@@ -157,7 +165,7 @@ function EventList({
                 {secondary ? <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{secondary}</p> : null}
               </div>
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-                {formatDateTime(item.date)}
+                {formatDateTime(item.date, hideExactTimestamps)}
               </p>
             </div>
           </div>
@@ -203,8 +211,10 @@ function PlaceList({
 
 function SubscriptionList({
   items,
+  hideExactTimestamps = false,
 }: {
   items: ProfileData["subscriptions"]["recent_purchases"];
+  hideExactTimestamps?: boolean;
 }) {
   if (items.length === 0) {
     return <p className="text-sm text-slate-500 dark:text-slate-400">No subscription purchases in this export.</p>;
@@ -229,7 +239,7 @@ function SubscriptionList({
               </p>
             </div>
             <div className="text-right text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-              <p>{formatDateTime(item.purchase_date)}</p>
+              <p>{formatDateTime(item.purchase_date, hideExactTimestamps)}</p>
               <p className="mt-1 normal-case tracking-normal">{item.is_active ? "Active" : "Inactive"}</p>
             </div>
           </div>
@@ -241,8 +251,10 @@ function SubscriptionList({
 
 function CallList({
   items,
+  hideExactTimestamps = false,
 }: {
   items: ProfileData["communications"]["recent_calls"];
+  hideExactTimestamps?: boolean;
 }) {
   if (items.length === 0) {
     return <p className="text-sm text-slate-500 dark:text-slate-400">No call history in this export.</p>;
@@ -277,7 +289,7 @@ function CallList({
               ) : null}
             </div>
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-              {formatDateTime(item.date)}
+              {formatDateTime(item.date, hideExactTimestamps)}
             </p>
           </div>
         </div>
@@ -288,8 +300,10 @@ function CallList({
 
 function SupportNoteList({
   items,
+  hideExactTimestamps = false,
 }: {
   items: ProfileData["communications"]["support_notes"];
+  hideExactTimestamps?: boolean;
 }) {
   if (items.length === 0) {
     return <p className="text-sm text-slate-500 dark:text-slate-400">No support notes in this export.</p>;
@@ -308,7 +322,7 @@ function SupportNoteList({
               {item.message ? <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{item.message}</p> : null}
             </div>
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-              {formatDateTime(item.date)}
+              {formatDateTime(item.date, hideExactTimestamps)}
             </p>
           </div>
         </div>
@@ -317,7 +331,13 @@ function SupportNoteList({
   );
 }
 
-function SnapchatPlusCard({ profile }: { profile: ProfileData }) {
+function SnapchatPlusCard({
+  profile,
+  hideExactTimestamps = false,
+}: {
+  profile: ProfileData;
+  hideExactTimestamps?: boolean;
+}) {
   return (
     <SettingsCard
       title="Snapchat+"
@@ -349,7 +369,7 @@ function SnapchatPlusCard({ profile }: { profile: ProfileData }) {
                   ? null
                   : formatDecimal(profile.subscriptions.latest_purchase.price),
             },
-            { label: "Latest End", value: formatDateTime(profile.subscriptions.latest_purchase?.ends_at ?? null) },
+            { label: "Latest End", value: formatDateTime(profile.subscriptions.latest_purchase?.ends_at ?? null, hideExactTimestamps) },
           ]}
         />
       </div>
@@ -357,7 +377,7 @@ function SnapchatPlusCard({ profile }: { profile: ProfileData }) {
       <div className="mt-5">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Recent Purchases</h3>
         <div className="mt-3">
-          <SubscriptionList items={profile.subscriptions.recent_purchases} />
+          <SubscriptionList items={profile.subscriptions.recent_purchases} hideExactTimestamps={hideExactTimestamps} />
         </div>
       </div>
     </SettingsCard>
@@ -367,6 +387,7 @@ function SnapchatPlusCard({ profile }: { profile: ProfileData }) {
 export default function Profile() {
   const profileQuery = useProfile();
   const settingsQuery = useSettings();
+  const { blurPrivateNames, hideExactTimestamps } = usePrivacyPreferences();
 
   if (profileQuery.isLoading) {
     return (
@@ -410,13 +431,21 @@ export default function Profile() {
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-sky-700/80 dark:text-sky-200/70">Imported Profile</p>
-              <h2 className="mt-2 truncate text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
+              <PrivacyText
+                as="h2"
+                blurred={blurPrivateNames}
+                className="mt-2 truncate text-3xl font-semibold tracking-tight text-slate-950 dark:text-white"
+              >
                 {profile.account.display_name || profile.account.username || "Snapchat Profile"}
-              </h2>
+              </PrivacyText>
               <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <span className="rounded-full border border-slate-200/80 bg-white/85 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.06]">
+                <PrivacyText
+                  as="span"
+                  blurred={blurPrivateNames}
+                  className="rounded-full border border-slate-200/80 bg-white/85 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.06]"
+                >
                   @{profile.account.username || "unknown"}
-                </span>
+                </PrivacyText>
                 <span className="rounded-full border border-slate-200/80 bg-white/85 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.06]">
                   Joined {formatDate(profile.account.created_at)}
                 </span>
@@ -445,7 +474,7 @@ export default function Profile() {
               items={[
                 { label: "Display Name", value: profile.account.display_name },
                 { label: "Username", value: profile.account.username },
-                { label: "Created", value: formatDateTime(profile.account.created_at) },
+                { label: "Created", value: formatDateTime(profile.account.created_at, hideExactTimestamps) },
                 { label: "Country", value: profile.account.country },
                 { label: "Language", value: profile.account.in_app_language },
                 { label: "Platform Version", value: profile.account.platform_version },
@@ -474,12 +503,20 @@ export default function Profile() {
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          <PrivacyText
+                            as="p"
+                            blurred={blurPrivateNames}
+                            className="text-sm font-semibold text-slate-900 dark:text-slate-100"
+                          >
                             {friend.display_name || friend.username || "Unknown friend"}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                          </PrivacyText>
+                          <PrivacyText
+                            as="p"
+                            blurred={blurPrivateNames}
+                            className="mt-1 text-sm text-slate-600 dark:text-slate-400"
+                          >
                             {friend.username ? `@${friend.username}` : "Username unavailable"}
-                          </p>
+                          </PrivacyText>
                         </div>
                         <div className="text-right text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                           <p>{formatDate(friend.added_at)}</p>
@@ -499,7 +536,7 @@ export default function Profile() {
                 { label: "Latest Region", value: profile.location.latest_region },
                 { label: "Latest City", value: profile.location.latest_city },
                 { label: "Latest Country", value: profile.location.latest_country },
-                { label: "Latest Coordinate Time", value: formatDateTime(profile.location.latest_coordinate_at) },
+                { label: "Latest Coordinate Time", value: formatDateTime(profile.location.latest_coordinate_at, hideExactTimestamps) },
                 { label: "Latest Coordinate", value: profile.location.latest_coordinate },
                 { label: "Inferred Home", value: profile.location.inferred_home },
                 { label: "Inferred Work", value: profile.location.inferred_work },
@@ -561,7 +598,7 @@ export default function Profile() {
                 items={[
                   { label: "Age Cohort", value: profile.engagement.cohort_age },
                   { label: "Ad Demographic", value: profile.engagement.derived_ad_demographic },
-                  { label: "Latest Share", value: formatDateTime(profile.engagement.latest_off_platform_share_at) },
+                  { label: "Latest Share", value: formatDateTime(profile.engagement.latest_off_platform_share_at, hideExactTimestamps) },
                   { label: "Ad Touches", value: String(profile.engagement.ads_interacted_count) },
                 ]}
               />
@@ -622,7 +659,7 @@ export default function Profile() {
             />
           </SettingsCard>
 
-          {showSnapchatPlusCard ? <SnapchatPlusCard profile={profile} /> : null}
+          {showSnapchatPlusCard ? <SnapchatPlusCard profile={profile} hideExactTimestamps={hideExactTimestamps} /> : null}
         </div>
 
         <div className="space-y-6">
@@ -655,37 +692,37 @@ export default function Profile() {
           <SettingsCard title="Security">
             <InfoList
               items={[
-                { label: "Latest Login", value: formatDateTime(profile.security.latest_login_at) },
+                { label: "Latest Login", value: formatDateTime(profile.security.latest_login_at, hideExactTimestamps) },
                 { label: "Latest Login Country", value: profile.security.latest_login_country },
                 { label: "Latest Login Status", value: profile.security.latest_login_status },
-                { label: "Latest Terms Acceptance", value: formatDateTime(profile.security.latest_terms_acceptance_at) },
+                { label: "Latest Terms Acceptance", value: formatDateTime(profile.security.latest_terms_acceptance_at, hideExactTimestamps) },
                 { label: "Password Changes", value: String(profile.security.password_change_count) },
                 { label: "Connected Permissions", value: String(profile.security.connected_permissions_count) },
-                { label: "Snapshot Generated", value: formatDateTime(profile.generated_at) },
+                { label: "Snapshot Generated", value: formatDateTime(profile.generated_at, hideExactTimestamps) },
               ]}
             />
             <div className="mt-5">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Two-Factor Events</h3>
               <div className="mt-3">
-                <EventList items={profile.security.two_factor_events} />
+                <EventList items={profile.security.two_factor_events} hideExactTimestamps={hideExactTimestamps} />
               </div>
             </div>
             <div className="mt-5">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Connected Apps</h3>
               <div className="mt-3">
-                <EventList items={profile.security.connected_apps} />
+                <EventList items={profile.security.connected_apps} hideExactTimestamps={hideExactTimestamps} />
               </div>
             </div>
             <div className="mt-5">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Terms Acceptance</h3>
               <div className="mt-3">
-                <EventList items={profile.security.terms_acceptances} />
+                <EventList items={profile.security.terms_acceptances} hideExactTimestamps={hideExactTimestamps} />
               </div>
             </div>
             <div className="mt-5">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Download Reports</h3>
               <div className="mt-3">
-                <EventList items={profile.security.download_reports} />
+                <EventList items={profile.security.download_reports} hideExactTimestamps={hideExactTimestamps} />
               </div>
             </div>
           </SettingsCard>
@@ -698,18 +735,18 @@ export default function Profile() {
                 <StatCard label="Completed" value={profile.communications.completed_calls_count} icon={BadgeCheck} />
               </div>
               <div className="mt-5">
-                <InfoList items={[{ label: "Latest Call", value: formatDateTime(profile.communications.latest_call_at) }]} />
+                <InfoList items={[{ label: "Latest Call", value: formatDateTime(profile.communications.latest_call_at, hideExactTimestamps) }]} />
               </div>
               <div className="mt-5">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Recent Calls</h3>
                 <div className="mt-3">
-                  <CallList items={profile.communications.recent_calls} />
+                  <CallList items={profile.communications.recent_calls} hideExactTimestamps={hideExactTimestamps} />
                 </div>
               </div>
               <div className="mt-5">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Support Notes</h3>
                 <div className="mt-3">
-                  <SupportNoteList items={profile.communications.support_notes} />
+                  <SupportNoteList items={profile.communications.support_notes} hideExactTimestamps={hideExactTimestamps} />
                 </div>
               </div>
             </SettingsCard>
@@ -720,19 +757,19 @@ export default function Profile() {
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Display Name Changes</h3>
                 <div className="mt-3">
-                  <EventList items={profile.history.display_name_changes} />
+                  <EventList items={profile.history.display_name_changes} hideExactTimestamps={hideExactTimestamps} />
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Email Changes</h3>
                 <div className="mt-3">
-                  <EventList items={profile.history.email_changes} />
+                  <EventList items={profile.history.email_changes} hideExactTimestamps={hideExactTimestamps} />
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Mobile Number Changes</h3>
                 <div className="mt-3">
-                  <EventList items={profile.history.mobile_number_changes} />
+                  <EventList items={profile.history.mobile_number_changes} hideExactTimestamps={hideExactTimestamps} />
                 </div>
               </div>
             </div>

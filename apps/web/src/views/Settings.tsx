@@ -1,29 +1,47 @@
-import { HardDrive, LoaderCircle, SlidersHorizontal } from "lucide-react";
+import { Clapperboard, HardDrive, LoaderCircle, Shield, TimerReset, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import AdvancedSettingsPanel from "../components/settings/AdvancedSettingsPanel";
 import DataStoragePanel from "../components/settings/DataStoragePanel";
-import GeneralSettingsPanel from "../components/settings/GeneralSettingsPanel";
+import PlaybackSettingsPanel from "../components/settings/PlaybackSettingsPanel";
+import PrivacySettingsPanel from "../components/settings/PrivacySettingsPanel";
+import TimelineSettingsPanel from "../components/settings/TimelineSettingsPanel";
 import type { AppSettingsUpdate } from "../hooks/useSettings";
 import { useSettings } from "../hooks/useSettings";
 import { useSystemAction, type SystemActionResponse } from "../hooks/useSystemStatus";
 
 const CATEGORY_ITEMS = [
   {
-    id: "general",
-    label: "General",
-    icon: SlidersHorizontal,
+    id: "playback",
+    label: "Playback",
+    icon: Clapperboard,
   },
   {
-    id: "storage",
+    id: "timeline",
+    label: "Timeline",
+    icon: TimerReset,
+  },
+  {
+    id: "library",
     label: "Library",
     icon: HardDrive,
+  },
+  {
+    id: "privacy",
+    label: "Privacy",
+    icon: Shield,
+  },
+  {
+    id: "advanced",
+    label: "Advanced",
+    icon: Wrench,
   },
 ] as const;
 
 type CategoryId = (typeof CATEGORY_ITEMS)[number]["id"];
 
 export default function Settings() {
-  const [activeCategory, setActiveCategory] = useState<CategoryId>("general");
+  const [activeCategory, setActiveCategory] = useState<CategoryId>("playback");
   const [dataFeedback, setDataFeedback] = useState<SystemActionResponse | null>(null);
 
   const settingsQuery = useSettings();
@@ -127,15 +145,23 @@ export default function Settings() {
         </aside>
 
         <div className="min-w-0">
-          {activeCategory === "general" ? (
-            <GeneralSettingsPanel
+          {activeCategory === "playback" ? (
+            <PlaybackSettingsPanel
               settings={settings}
               isSaving={settingsQuery.isSaving}
               onUpdate={handleUpdateSettings}
             />
           ) : null}
 
-          {activeCategory === "storage" ? (
+          {activeCategory === "timeline" ? (
+            <TimelineSettingsPanel
+              settings={settings}
+              isSaving={settingsQuery.isSaving}
+              onUpdate={handleUpdateSettings}
+            />
+          ) : null}
+
+          {activeCategory === "library" ? (
             <DataStoragePanel
               isRescanning={rescanAction.isPending}
               isRebuildingThumbnails={rebuildThumbnailsAction.isPending}
@@ -144,6 +170,22 @@ export default function Settings() {
               onRebuildThumbnails={handleRebuildThumbnails}
               onReset={handleReset}
               actionFeedback={dataFeedback}
+            />
+          ) : null}
+
+          {activeCategory === "privacy" ? (
+            <PrivacySettingsPanel
+              settings={settings}
+              isSaving={settingsQuery.isSaving}
+              onUpdate={handleUpdateSettings}
+            />
+          ) : null}
+
+          {activeCategory === "advanced" ? (
+            <AdvancedSettingsPanel
+              settings={settings}
+              isSaving={settingsQuery.isSaving}
+              onUpdate={handleUpdateSettings}
             />
           ) : null}
         </div>

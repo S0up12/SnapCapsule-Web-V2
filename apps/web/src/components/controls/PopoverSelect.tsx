@@ -1,5 +1,6 @@
 import { ChevronDown, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type PopoverOption = {
   value: string;
@@ -28,7 +29,15 @@ export default function PopoverSelect({
   minWidthClassName = "min-w-[11rem]",
 }: PopoverSelectProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const selectedOption = options.find((option) => option.value === value) ?? options[0];
 
   useEffect(() => {
@@ -37,7 +46,8 @@ export default function PopoverSelect({
     }
 
     function handlePointerDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!containerRef.current?.contains(target) && !menuRef.current?.contains(target)) {
         setIsOpen(false);
       }
     }
@@ -56,11 +66,54 @@ export default function PopoverSelect({
     };
   }, [disabled, isOpen]);
 
+  useLayoutEffect(() => {
+    if (!isOpen || disabled || !triggerRef.current) {
+      return;
+    }
+
+    function updatePosition() {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+
+      const viewportPadding = 12;
+      const gutter = 12;
+      const estimatedHeight = menuRef.current?.offsetHeight ?? Math.min(320, options.length * 44 + 16);
+      const spaceBelow = window.innerHeight - rect.bottom - gutter - viewportPadding;
+      const spaceAbove = rect.top - gutter - viewportPadding;
+      const openUpward = spaceBelow < Math.min(estimatedHeight, 240) && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(
+        120,
+        openUpward ? rect.top - gutter - viewportPadding : window.innerHeight - rect.bottom - gutter - viewportPadding,
+      );
+      const top = openUpward
+        ? Math.max(viewportPadding, rect.top - Math.min(estimatedHeight, maxHeight) - gutter)
+        : Math.min(window.innerHeight - viewportPadding - Math.min(estimatedHeight, maxHeight), rect.bottom + gutter);
+
+      setMenuStyle({
+        left: Math.max(viewportPadding, Math.min(rect.left, window.innerWidth - viewportPadding - rect.width)),
+        top,
+        width: rect.width,
+        maxHeight,
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [disabled, isOpen, options.length]);
+
   const widthClassName = fullWidth ? "w-full" : minWidthClassName;
 
   return (
     <div ref={containerRef} className={["relative", fullWidth ? "w-full" : ""].join(" ")}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => {
           if (!disabled) {
@@ -89,41 +142,52 @@ export default function PopoverSelect({
             isOpen ? "rotate-180" : "rotate-0",
           ].join(" ")}
         />
-      </button>
+        </button>
 
-      {isOpen ? (
-        <div
-          role="listbox"
-          aria-label={label}
-          className={[
-            "absolute left-0 top-[calc(100%+0.75rem)] z-30 overflow-hidden rounded-[1.1rem] border border-slate-200/90 bg-white/96 p-1.5",
-            "shadow-[0_18px_50px_rgba(15,23,42,0.14)] backdrop-blur dark:border-white/10 dark:bg-slate-950/95",
-            widthClassName,
-          ].join(" ")}
-        >
-          {options.map((option) => {
-            const isActive = option.value === value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => {
-                  onChange(option.value);
-                  setIsOpen(false);
-                }}
-                className={[
-                  "flex w-full items-center rounded-[0.9rem] px-3 py-2 text-left text-sm font-medium transition",
-                  isActive
-                    ? "bg-sky-100 text-sky-950 dark:bg-white dark:text-slate-950"
-                    : "text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-200 dark:hover:bg-white/[0.08] dark:hover:text-white",
-                ].join(" ")}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+      {isOpen && menuStyle
+        ? createPortal(
+            <div
+              ref={menuRef}
+              role="listbox"
+              aria-label={label}
+              style={{
+                position: "fixed",
+                left: `${menuStyle.left}px`,
+                top: `${menuStyle.top}px`,
+                width: `${menuStyle.width}px`,
+                maxHeight: `${menuStyle.maxHeight}px`,
+              }}
+              className={[
+                "z-[90] overflow-y-auto rounded-[1.1rem] border border-slate-200/90 bg-white/96 p-1.5",
+                "shadow-[0_18px_50px_rgba(15,23,42,0.14)] backdrop-blur dark:border-white/10 dark:bg-slate-950/95",
+                fullWidth ? "" : minWidthClassName,
+              ].join(" ")}
+            >
+              {options.map((option) => {
+                const isActive = option.value === value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(option.value);
+                      setIsOpen(false);
+                    }}
+                    className={[
+                      "flex w-full items-center rounded-[0.9rem] px-3 py-2 text-left text-sm font-medium transition",
+                      isActive
+                        ? "bg-sky-100 text-sky-950 dark:bg-white dark:text-slate-950"
+                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-200 dark:hover:bg-white/[0.08] dark:hover:text-white",
+                    ].join(" ")}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

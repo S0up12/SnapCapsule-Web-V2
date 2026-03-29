@@ -83,6 +83,18 @@ describe("Memories", () => {
     useMemoryGridPreferences.mockReturnValue({
       autoplayVideosInGrid: false,
       defaultGridSize: "medium",
+      preferBrowserPlayback: true,
+      muteVideoPreviews: true,
+      loopVideoPreviews: true,
+      videoPreviewHoverDelay: "1.2s",
+      autoplayVideosInLightbox: true,
+      timelineDefaultSort: "newest",
+      timelineDefaultFilter: "all",
+      timelineDateGrouping: "year",
+      rememberLastTimelineFilters: false,
+      showUndatedAssets: true,
+      saveSettings: vi.fn(),
+      isLoading: false,
     });
     useTimelineTags.mockReturnValue({
       data: ["trip", "beach"],
@@ -128,12 +140,13 @@ describe("Memories", () => {
 
     render(<Memories />);
 
-    expect(useTimeline).toHaveBeenLastCalledWith({
-      sort: "desc",
-      filter: "all",
-      tag: null,
-      dateFrom: null,
-      dateTo: null,
+      expect(useTimeline).toHaveBeenLastCalledWith({
+        sort: "desc",
+        filter: "all",
+        includeUndated: true,
+        tag: null,
+        dateFrom: null,
+        dateTo: null,
       search: null,
     });
 
@@ -144,6 +157,7 @@ describe("Memories", () => {
       expect(useTimeline).toHaveBeenLastCalledWith({
         sort: "asc",
         filter: "all",
+        includeUndated: true,
         tag: null,
         dateFrom: null,
         dateTo: null,
@@ -158,6 +172,7 @@ describe("Memories", () => {
       expect(useTimeline).toHaveBeenLastCalledWith({
         sort: "asc",
         filter: "favorites",
+        includeUndated: true,
         tag: null,
         dateFrom: null,
         dateTo: null,
@@ -172,6 +187,7 @@ describe("Memories", () => {
       expect(useTimeline).toHaveBeenLastCalledWith({
         sort: "asc",
         filter: "favorites",
+        includeUndated: true,
         tag: "trip",
         dateFrom: null,
         dateTo: null,
@@ -187,6 +203,7 @@ describe("Memories", () => {
       expect(useTimeline).toHaveBeenLastCalledWith({
         sort: "asc",
         filter: "favorites",
+        includeUndated: true,
         tag: "trip",
         dateFrom: null,
         dateTo: null,

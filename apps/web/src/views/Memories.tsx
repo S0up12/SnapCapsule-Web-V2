@@ -1,5 +1,5 @@
 import { LoaderCircle } from "lucide-react";
-import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import Lightbox from "../components/Lightbox";
 import BulkSelectionBar from "../components/memories/BulkSelectionBar";
@@ -9,13 +9,53 @@ import TagEditorModal from "../components/memories/TagEditorModal";
 import VirtualTimelineGrid from "../components/VirtualTimelineGrid";
 import { useBulkSetFavorite, useBulkUpdateTags, useDeleteTimelineTag, useToggleFavorite, useUpdateAssetTags } from "../hooks/useAssetActions";
 import { useMemoryGridPreferences } from "../hooks/useMemoryGridPreferences";
-import { useTimeline, useTimelineTags, type TimelineAsset, type TimelineFilter, type TimelineSort } from "../hooks/useTimeline";
+import { useTimeline, useTimelineTags, type TimelineAsset, type TimelineDateGrouping, type TimelineFilter, type TimelineSort } from "../hooks/useTimeline";
 import { applyMemorySelection } from "./memorySelection";
 
+function settingsSortToTimelineSort(value: "newest" | "oldest"): TimelineSort {
+  return value === "oldest" ? "asc" : "desc";
+}
+
+function timelineSortToSettingsSort(value: TimelineSort): "newest" | "oldest" {
+  return value === "asc" ? "oldest" : "newest";
+}
+
+function hoverDelayToMs(value: "off" | "0.6s" | "1.2s" | "2s") {
+  switch (value) {
+    case "off":
+      return null;
+    case "0.6s":
+      return 600;
+    case "2s":
+      return 2000;
+    case "1.2s":
+    default:
+      return 1200;
+  }
+}
+
 export default function Memories() {
-  const { autoplayVideosInGrid, defaultGridSize } = useMemoryGridPreferences();
-  const [sort, setSort] = useState<TimelineSort>("desc");
-  const [filter, setFilter] = useState<TimelineFilter>("all");
+  const {
+    autoplayVideosInGrid,
+    defaultGridSize,
+    preferBrowserPlayback,
+    muteVideoPreviews,
+    loopVideoPreviews,
+    videoPreviewHoverDelay,
+    autoplayVideosInLightbox,
+    timelineDefaultSort,
+    timelineDefaultFilter,
+    timelineDateGrouping,
+    rememberLastTimelineFilters,
+    showUndatedAssets: defaultShowUndatedAssets,
+    saveSettings,
+    isLoading: isLoadingPreferences,
+  } = useMemoryGridPreferences();
+  const hasAppliedSettingsRef = useRef(false);
+  const [sort, setSort] = useState<TimelineSort>(settingsSortToTimelineSort(timelineDefaultSort));
+  const [filter, setFilter] = useState<TimelineFilter>(timelineDefaultFilter);
+  const [grouping, setGrouping] = useState<TimelineDateGrouping>(timelineDateGrouping);
+  const [showUndatedAssets, setShowUndatedAssets] = useState(defaultShowUndatedAssets);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -31,6 +71,7 @@ export default function Memories() {
   const timelineQuery = useTimeline({
     sort,
     filter,
+    includeUndated: showUndatedAssets,
     tag: activeTag,
     dateFrom: dateFrom || null,
     dateTo: dateTo || null,
@@ -61,6 +102,39 @@ export default function Memories() {
     () => assets.filter((asset) => selectedAssetIdsSet.has(asset.id)),
     [assets, selectedAssetIdsSet],
   );
+  const hoverPreviewDelayMs = useMemo(() => hoverDelayToMs(videoPreviewHoverDelay), [videoPreviewHoverDelay]);
+
+  useEffect(() => {
+    if (isLoadingPreferences || hasAppliedSettingsRef.current) {
+      return;
+    }
+
+    setSort(settingsSortToTimelineSort(timelineDefaultSort));
+    setFilter(timelineDefaultFilter);
+    setGrouping(timelineDateGrouping);
+    setShowUndatedAssets(defaultShowUndatedAssets);
+    hasAppliedSettingsRef.current = true;
+  }, [
+    defaultShowUndatedAssets,
+    isLoadingPreferences,
+    timelineDateGrouping,
+    timelineDefaultFilter,
+    timelineDefaultSort,
+  ]);
+
+  async function persistRememberedTimelineSettings(
+    updates: Partial<{
+      timeline_default_sort: "newest" | "oldest";
+      timeline_default_filter: TimelineFilter;
+      timeline_date_grouping: TimelineDateGrouping;
+      show_undated_assets: boolean;
+    }>,
+  ) {
+    if (!rememberLastTimelineFilters) {
+      return;
+    }
+    await saveSettings(updates);
+  }
 
   useEffect(() => {
     if (!selectionMode) {
@@ -76,6 +150,8 @@ export default function Memories() {
       <MemoriesToolbar
         sort={sort}
         filter={filter}
+        grouping={grouping}
+        showUndatedAssets={showUndatedAssets}
         activeTag={activeTag}
         dateFrom={dateFrom}
         dateTo={dateTo}
@@ -87,8 +163,22 @@ export default function Memories() {
         totalPhotos={summary.total_photos}
         totalVideos={summary.total_videos}
         availableTags={timelineTagsQuery.data ?? []}
-        onSortChange={setSort}
-        onFilterChange={setFilter}
+        onSortChange={(value) => {
+          setSort(value);
+          void persistRememberedTimelineSettings({ timeline_default_sort: timelineSortToSettingsSort(value) });
+        }}
+        onFilterChange={(value) => {
+          setFilter(value);
+          void persistRememberedTimelineSettings({ timeline_default_filter: value });
+        }}
+        onGroupingChange={(value) => {
+          setGrouping(value);
+          void persistRememberedTimelineSettings({ timeline_date_grouping: value });
+        }}
+        onShowUndatedChange={(value) => {
+          setShowUndatedAssets(value);
+          void persistRememberedTimelineSettings({ show_undated_assets: value });
+        }}
         onTagChange={setActiveTag}
         onDateChange={({ dateFrom: nextDateFrom, dateTo: nextDateTo }) => {
           setDateFrom(nextDateFrom);
@@ -147,7 +237,12 @@ export default function Memories() {
           assets={assets}
           total={total}
           autoplayVideosInGrid={autoplayVideosInGrid}
+          preferBrowserPlayback={preferBrowserPlayback}
+          muteVideoPreviews={muteVideoPreviews}
+          loopVideoPreviews={loopVideoPreviews}
+          hoverPreviewDelayMs={hoverPreviewDelayMs}
           defaultGridSize={defaultGridSize}
+          grouping={grouping}
           hasNextPage={Boolean(hasNextPage)}
           isFetchingNextPage={isFetchingNextPage}
           isInitialLoading={isLoading}
@@ -205,6 +300,8 @@ export default function Memories() {
               setSelectedIndex(nextIndex);
             });
           }}
+          preferBrowserPlayback={preferBrowserPlayback}
+          autoplayVideosInLightbox={autoplayVideosInLightbox}
           onToggleFavorite={async (asset) => {
             await toggleFavorite.mutateAsync(asset.id);
           }}

@@ -3,7 +3,10 @@ import { Fragment, startTransition, useEffect, useMemo, useRef, useState } from 
 
 import PopoverSelect from "../components/controls/PopoverSelect";
 import Lightbox from "../components/Lightbox";
+import PrivacyText from "../components/privacy/PrivacyText";
 import { useShowMemoryOverlays } from "../hooks/useOverlayPreference";
+import { usePrivacyPreferences } from "../hooks/usePrivacyPreferences";
+import { resolveAppSettings, useSettings } from "../hooks/useSettings";
 import { getOriginalUrl, getThumbnailUrl, type TimelineAsset } from "../hooks/useTimeline";
 import { useChatMessages, useChats, type ChatConversation, type ChatMediaAsset, type ChatMessageGroup } from "../hooks/useChats";
 import { listMatchedChatMessageIds, messageMatchesChatSearch, normalizeChatSearch } from "./chatSearch";
@@ -84,10 +87,18 @@ function formatConversationTime(value: string | null) {
   }).format(date);
 }
 
-function formatMessageTime(value: string) {
+function formatMessageTime(value: string, hideExactTimestamps: boolean) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "";
+  }
+
+  if (hideExactTimestamps) {
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(date);
   }
 
   return new Intl.DateTimeFormat(undefined, {
@@ -279,10 +290,12 @@ function formatAudioClock(value: number) {
 function ConversationRow({
   conversation,
   isSelected,
+  blurPrivateNames,
   onSelect,
 }: {
   conversation: ChatConversation;
   isSelected: boolean;
+  blurPrivateNames: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -302,7 +315,12 @@ function ConversationRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
-          <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{conversation.display_name}</p>
+          <PrivacyText
+            blurred={blurPrivateNames}
+            className="truncate text-sm font-semibold text-slate-900 dark:text-white"
+          >
+            {conversation.display_name}
+          </PrivacyText>
           <span className="shrink-0 text-[11px] uppercase tracking-[0.18em] text-slate-500">
             {formatConversationTime(conversation.latest_at)}
           </span>
@@ -472,6 +490,8 @@ function MessageBubble({
   searchTerm,
   isSearchMatch,
   isActiveSearchMatch,
+  blurPrivateNames,
+  hideExactTimestamps,
   onOpenMedia,
 }: {
   message: ChatMessageGroup;
@@ -480,6 +500,8 @@ function MessageBubble({
   searchTerm: string;
   isSearchMatch: boolean;
   isActiveSearchMatch: boolean;
+  blurPrivateNames: boolean;
+  hideExactTimestamps: boolean;
   onOpenMedia: (assetId: string) => void;
 }) {
   const audioAssets = message.media_assets.filter((asset) => asset.media_type === "audio");
@@ -489,9 +511,12 @@ function MessageBubble({
     <div className="flex justify-start">
       <div className="max-w-[min(46rem,94%)]">
         <div className="flex items-center gap-3 px-1">
-          <span className={["text-[11px] font-semibold uppercase tracking-[0.22em]", senderTone.labelClass].join(" ")}>
+          <PrivacyText
+            blurred={blurPrivateNames}
+            className={["text-[11px] font-semibold uppercase tracking-[0.22em]", senderTone.labelClass].join(" ")}
+          >
             {message.sender_label}
-          </span>
+          </PrivacyText>
         </div>
         <div className="group mt-1.5 inline-flex items-stretch gap-3">
           <div className={["w-[3px] shrink-0 rounded-full", senderTone.poleClass].join(" ")} />
@@ -532,7 +557,7 @@ function MessageBubble({
             ) : null}
           </div>
           <div className="inline-flex min-h-[2.75rem] items-center px-1 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400 opacity-0 transition duration-150 group-hover:opacity-100">
-            <span>{formatMessageTime(message.sent_at)}</span>
+            <span>{formatMessageTime(message.sent_at, hideExactTimestamps)}</span>
           </div>
         </div>
       </div>
@@ -542,6 +567,8 @@ function MessageBubble({
 
 export default function Chats() {
   const showOverlays = useShowMemoryOverlays();
+  const { blurPrivateNames, hideExactTimestamps } = usePrivacyPreferences();
+  const settings = resolveAppSettings(useSettings().data);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [filter, setFilter] = useState<"all" | "has_media">("all");
@@ -713,6 +740,7 @@ export default function Chats() {
                   key={conversation.id}
                   conversation={conversation}
                   isSelected={conversation.id === selectedChatId}
+                  blurPrivateNames={blurPrivateNames}
                   onSelect={() => setSelectedChatId(conversation.id)}
                 />
               ))}
@@ -730,7 +758,12 @@ export default function Chats() {
           <>
             <header className="border-b border-slate-200/80 px-5 py-4 dark:border-white/10">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold text-slate-950 dark:text-white">{selectedConversation.display_name}</h2>
+                <PrivacyText
+                  blurred={blurPrivateNames}
+                  className="text-lg font-semibold text-slate-950 dark:text-white"
+                >
+                  {selectedConversation.display_name}
+                </PrivacyText>
                 {normalizedSearch ? (
                   matchedMessageIds.length > 0 ? (
                     <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/70 bg-amber-100/80 px-2.5 py-1 text-xs font-medium text-amber-950 dark:border-amber-300/30 dark:bg-amber-300/10 dark:text-amber-100">
@@ -795,6 +828,8 @@ export default function Chats() {
                         searchTerm={normalizedSearch}
                         isSearchMatch={messageMatchesChatSearch(message, normalizedSearch)}
                         isActiveSearchMatch={message.id === activeMatchedMessageId}
+                        blurPrivateNames={blurPrivateNames}
+                        hideExactTimestamps={hideExactTimestamps}
                         onOpenMedia={(assetId) => {
                           const index = flattenedMedia.findIndex((asset) => asset.id === assetId);
                           if (index < 0) {
@@ -831,6 +866,8 @@ export default function Chats() {
               setLightboxIndex(nextIndex);
             });
           }}
+          preferBrowserPlayback={settings.prefer_browser_playback}
+          autoplayVideosInLightbox={settings.autoplay_videos_in_lightbox}
         />
       ) : null}
     </section>
