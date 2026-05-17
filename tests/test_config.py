@@ -33,3 +33,16 @@ def test_settings_keep_container_defaults_inside_container(monkeypatch):
     assert settings.database_url.endswith("@db:5432/snapcapsule")
     assert settings.redis_url == "redis://redis:6379/0"
     assert settings.raw_media_dir == "/srv/snapcapsule/raw"
+
+
+def test_settings_build_database_url_from_components_with_escaped_password(monkeypatch):
+    monkeypatch.setattr("snapcapsule_core.config._is_running_in_container", lambda: True)
+
+    settings = Settings(
+        database_host="db",
+        database_name="snapcapsule",
+        database_user="snapcapsule",
+        database_password="@Beheer207!!",
+    )
+
+    assert settings.database_url == "postgresql+psycopg://snapcapsule:%40Beheer207%21%21@db:5432/snapcapsule"

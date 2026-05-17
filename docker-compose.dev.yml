@@ -1,25 +1,18 @@
-name: snapcapsule-web
-
-x-backend-image: &backend-image
-  image: snapcapsule-web-backend:${SNAPCAPSULE_VERSION:-local}
-  build:
-    context: .
-    dockerfile: apps/backend/Dockerfile.prod
+name: snapcapsule-web-dev
 
 x-backend-environment: &backend-environment
-  SNAPCAPSULE_ENVIRONMENT: production
   SNAPCAPSULE_DATABASE_HOST: db
   SNAPCAPSULE_DATABASE_PORT: 5432
   SNAPCAPSULE_DATABASE_NAME: ${POSTGRES_DB:-snapcapsule}
   SNAPCAPSULE_DATABASE_USER: ${POSTGRES_USER:-snapcapsule}
   SNAPCAPSULE_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-snapcapsule}
   SNAPCAPSULE_REDIS_URL: redis://redis:6379/0
-  SNAPCAPSULE_ALLOWED_ORIGINS: ${SNAPCAPSULE_ALLOWED_ORIGINS:-}
   SNAPCAPSULE_RAW_MEDIA_DIR: /srv/snapcapsule/raw
   SNAPCAPSULE_THUMBNAIL_DIR: /srv/snapcapsule/thumbnails
   SNAPCAPSULE_INGEST_ROOT_DIR: /srv/snapcapsule/ingest
 
 x-media-volumes: &media-volumes
+  - .:/workspace
   - ${HOST_RAW_MEDIA_DIR:-./data/raw}:/srv/snapcapsule/raw
   - ${HOST_THUMBNAIL_DIR:-./data/thumbnails}:/srv/snapcapsule/thumbnails
   - ${HOST_INGEST_DIR:-./data/ingest}:/srv/snapcapsule/ingest
@@ -31,6 +24,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-snapcapsule}
       POSTGRES_USER: ${POSTGRES_USER:-snapcapsule}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-snapcapsule}
+    ports:
+      - 127.0.0.1:${SNAPCAPSULE_DB_PORT:-5432}:5432
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-snapcapsule} -d ${POSTGRES_DB:-snapcapsule}"]
       interval: 10s
@@ -38,40 +33,29 @@ services:
       retries: 5
     restart: unless-stopped
     volumes:
-      - ${HOST_POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data
+      - postgres_data_dev:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - 127.0.0.1:${SNAPCAPSULE_REDIS_PORT:-6379}:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
-    volumes:
-      - ${HOST_REDIS_DATA_DIR:-redis_data}:/data
-
-  migrate:
-    <<: *backend-image
-    depends_on:
-      db:
-        condition: service_healthy
-    command: ["alembic", "upgrade", "head"]
-    environment:
-      <<: *backend-environment
-    volumes: *media-volumes
-    restart: "no"
 
   backend:
-    <<: *backend-image
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     command:
       [
         "uvicorn",
@@ -80,35 +64,26 @@ services:
         "0.0.0.0",
         "--port",
         "8000",
-        "--workers",
-        "${SNAPCAPSULE_API_WORKERS:-2}"
+        "--reload"
       ]
     environment:
       <<: *backend-environment
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()"
-        ]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
+      SNAPCAPSULE_ALLOWED_ORIGINS: ${SNAPCAPSULE_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - ${SNAPCAPSULE_API_PORT:-8000}:8000
     restart: unless-stopped
     volumes: *media-volumes
 
   worker:
-    <<: *backend-image
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     command:
       [
         "sh",
@@ -121,24 +96,24 @@ services:
     restart: unless-stopped
     volumes: *media-volumes
 
-  web:
-    image: snapcapsule-web-gateway:${SNAPCAPSULE_VERSION:-local}
+  frontend:
     build:
       context: .
-      dockerfile: apps/web/Dockerfile.prod
+      dockerfile: apps/web/Dockerfile
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
+    command: ["npm", "run", "dev"]
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8000
+      CHOKIDAR_USEPOLLING: "true"
     ports:
-      - ${SNAPCAPSULE_WEB_PORT:-3000}:80
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
+      - ${SNAPCAPSULE_WEB_PORT:-3000}:5173
     restart: unless-stopped
+    volumes:
+      - ./apps/web:/app
+      - frontend_node_modules:/app/node_modules
 
 volumes:
-  postgres_data:
-  redis_data:
+  postgres_data_dev:
+  frontend_node_modules:

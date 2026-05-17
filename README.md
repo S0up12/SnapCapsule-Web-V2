@@ -1,6 +1,6 @@
 # SnapCapsule Web
 
-SnapCapsule Web is a development-first, worker-driven Snapchat archive service built around FastAPI, Celery, PostgreSQL, Redis, and a React/Vite gallery frontend.
+SnapCapsule Web is a worker-driven Snapchat archive service built around FastAPI, Celery, PostgreSQL, Redis, and a React gallery frontend.
 
 ## Architecture Notes
 
@@ -43,6 +43,7 @@ packages/
     queue.py
 .env.example
 docker-compose.yml
+docker-compose.dev.yml
 pyproject.toml
 ```
 
@@ -50,9 +51,10 @@ pyproject.toml
 
 - `db`: PostgreSQL for archive metadata, timestamps, relationships, and file paths
 - `redis`: Redis broker/result backend for Celery
-- `backend`: FastAPI service running with `uvicorn --reload` against the mounted source tree
-- `worker`: Celery worker using the same shared Python image and mounted codebase
-- `frontend`: Vite development server with live React/Tailwind hot reload
+- `migrate`: one-shot Alembic migration service that runs before the app starts
+- `backend`: FastAPI API, internal only
+- `worker`: Celery ingestion and media-processing worker, internal only
+- `web`: Nginx gateway serving the optimized React build and proxying `/api/*` plus `/health`
 
 ## Storage Model
 
@@ -69,40 +71,43 @@ That keeps media serving simple and fast: the API reads metadata from Postgres, 
 
 1. Copy `.env.example` to `.env`.
 2. Adjust the host storage paths if needed.
-3. Start the database and Redis dependencies:
+3. Start the application:
 
 ```bash
-docker compose up -d db redis
+docker compose up -d --build
 ```
 
-4. Run the database migrations in a one-off backend container:
-
-```bash
-docker compose run --rm backend alembic upgrade head
-```
-
-5. Start the application stack:
-
-```bash
-docker compose up --build
-```
-
-6. Open the apps:
+4. Open the app:
 
 ```bash
 http://localhost:3000
-http://localhost:8000/health
 ```
 
-The frontend runs through Vite on port `3000`, the API runs on port `8000`, and both backend and frontend reload automatically when you save local files.
+The default Compose stack is the production-style install path used for local testing and Portainer. Only `web` publishes a host port; the API remains available through the same origin at `/api/*`, and health checks are available through `/health`.
 
-## Local Host Development
-
-If you want to run the Python app directly from your IDE instead of inside Docker, keep `db` and `redis` running with Compose:
+Useful checks:
 
 ```bash
-docker compose up -d db redis
-docker compose run --rm backend alembic upgrade head
+docker compose ps
+curl http://localhost:3000/health
+curl http://localhost:3000/api/stats
+```
+
+## Hot-Reload Development
+
+Use the dev Compose file only when you specifically want Vite and Uvicorn hot reload:
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.dev.yml run --rm backend alembic upgrade head
+```
+
+The dev frontend runs on `http://localhost:3000`, and the API is also published on `http://localhost:8000/health`.
+
+If you want to run the Python app directly from your IDE, keep only the dev database and Redis running:
+
+```bash
+docker compose -f docker-compose.dev.yml up -d db redis
 python -m uvicorn apps.api.app.main:app --reload
 ```
 
@@ -122,7 +127,8 @@ Backend tests run against a dedicated Postgres test database so they do not touc
 This repo currently includes:
 
 - the monorepo folder structure for `api`, `worker`, and `web`
-- a development-oriented Docker Compose stack for Postgres, Redis, FastAPI, Celery, and Vite
+- a production-style Docker Compose stack with a single public web gateway
+- an optional hot-reload Docker Compose stack for local development
 - SQLAlchemy 2.0 models for assets, chats, memories, and stories
 - FastAPI ingestion, timeline, and media-serving routes
 - Celery ingestion and media-processing workers

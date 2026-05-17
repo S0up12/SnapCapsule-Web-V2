@@ -41,8 +41,8 @@ export default function Sidebar({
           collapsed ? "flex flex-col items-center px-3 py-4" : "flex items-center gap-3 px-4 py-4",
         ].join(" ")}
       >
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.25rem] bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.35),_rgba(14,165,233,0.18),_rgba(255,255,255,0.9))] text-slate-800 shadow-inner shadow-white/20 dark:bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.35),_rgba(14,165,233,0.18),_rgba(15,23,42,0.85))] dark:text-slate-50 dark:shadow-white/10">
-          <Archive className="h-5 w-5" />
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.25rem] border border-slate-200/70 bg-white shadow-sm shadow-slate-900/10 dark:border-white/10 dark:bg-white/[0.06] dark:shadow-black/20">
+          <img src="/logo.svg" alt="SnapCapsule" className="h-9 w-9 object-contain" draggable={false} />
         </div>
         {!collapsed ? (
           <div className="min-w-0">

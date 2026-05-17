@@ -8,7 +8,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 
 Push-Location $repoRoot
 try {
-    docker compose restart @Services
+    docker compose -f docker-compose.dev.yml restart @Services
 }
 finally {
     Pop-Location

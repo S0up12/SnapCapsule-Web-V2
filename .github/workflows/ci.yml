@@ -19,7 +19,7 @@ jobs:
       - name: Lint backend
         run: python -m ruff check .
       - name: Start compose dependencies
-        run: docker compose up -d db redis
+        run: docker compose -f docker-compose.dev.yml up -d db redis
       - name: Run backend tests
         shell: pwsh
         run: ./scripts/run-backend-tests.ps1

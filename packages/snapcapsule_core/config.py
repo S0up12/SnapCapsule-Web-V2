@@ -1,6 +1,6 @@
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
-from urllib.parse import SplitResult, urlsplit, urlunsplit
+from urllib.parse import SplitResult, quote, urlsplit, urlunsplit
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     project_name: str = "SnapCapsule Web"
     environment: str = "development"
     database_url: str = "postgresql+psycopg://snapcapsule:snapcapsule@127.0.0.1:5432/snapcapsule"
+    database_host: str | None = None
+    database_port: int = 5432
+    database_name: str | None = None
+    database_user: str | None = None
+    database_password: str | None = None
     redis_url: str = "redis://127.0.0.1:6379/0"
     celery_broker_url: str | None = None
     celery_result_backend: str | None = None
@@ -28,6 +33,15 @@ class Settings(BaseSettings):
     )
 
     def model_post_init(self, __context: object) -> None:
+        if self.database_host and self.database_name and self.database_user is not None:
+            self.database_url = _build_database_url(
+                username=self.database_user,
+                password=self.database_password,
+                host=self.database_host,
+                port=self.database_port,
+                database_name=self.database_name,
+            )
+
         if _is_running_in_container():
             return
 
@@ -122,3 +136,19 @@ def _replace_container_storage_path(path_value: str, relative_dir: str) -> str:
         return path_value
 
     return str(DATA_ROOT / relative_dir)
+
+
+def _build_database_url(
+    *,
+    username: str,
+    password: str | None,
+    host: str,
+    port: int,
+    database_name: str,
+) -> str:
+    encoded_user = quote(username, safe="")
+    auth = encoded_user
+    if password is not None:
+        auth = f"{auth}:{quote(password, safe='')}"
+
+    return f"postgresql+psycopg://{auth}@{host}:{port}/{quote(database_name, safe='')}"
