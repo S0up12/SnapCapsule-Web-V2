@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -160,6 +161,9 @@ def test_get_profile_route_returns_persisted_snapshot(db_session_factory, monkey
 
 
 def test_build_profile_snapshot_parses_export_roots(tmp_path):
+    purchase_date = datetime.now(UTC).replace(microsecond=0)
+    subscription_end_date = purchase_date + timedelta(days=30)
+
     export_root = tmp_path / "export"
     json_root = export_root / "json"
     json_root.mkdir(parents=True)
@@ -278,16 +282,16 @@ def test_build_profile_snapshot_parses_export_roots(tmp_path):
     (json_root / "snapchat_plus.json").write_text(
         json.dumps(
             {
-                "": [
-                    {
-                        "Purchase Date": "2026-03-25 19:25:18 UTC",
-                        "Purchase Type": "1 month Subscription",
-                        "Purchase Provider": "Apple",
-                        "Price": 0.99,
-                        "End Date (if applicable)": "2026-04-25 19:25:18 UTC",
-                    }
-                ]
-            }
+                    "": [
+                        {
+                            "Purchase Date": purchase_date.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                            "Purchase Type": "1 month Subscription",
+                            "Purchase Provider": "Apple",
+                            "Price": 0.99,
+                            "End Date (if applicable)": subscription_end_date.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                        }
+                    ]
+                }
         ),
         encoding="utf-8",
     )

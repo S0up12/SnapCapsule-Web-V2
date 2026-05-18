@@ -27,7 +27,7 @@ try {
     "backend",
     "sh",
     "-lc",
-    'python -m pip install -e ".[dev]" && alembic upgrade head && python -m pytest "$@"',
+    'export SNAPCAPSULE_DATABASE_URL="postgresql+psycopg://${SNAPCAPSULE_DATABASE_USER}:${SNAPCAPSULE_DATABASE_PASSWORD}@${SNAPCAPSULE_DATABASE_HOST}:${SNAPCAPSULE_DATABASE_PORT}/${SNAPCAPSULE_DATABASE_NAME}" && export SNAPCAPSULE_TEST_DATABASE_URL="${SNAPCAPSULE_DATABASE_URL}_test" && python -m pip install -e ".[dev]" && alembic upgrade head && python -m pytest "$@"',
     "pytest"
   )
   if ($PytestArgs.Count -gt 0) {

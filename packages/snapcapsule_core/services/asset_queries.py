@@ -309,6 +309,7 @@ def delete_asset_tag(session: Session, tag: str) -> TagDeleteRecord:
     )
     affected_assets = int(result.rowcount or 0)
     session.flush()
+    session.expire_all()
     return TagDeleteRecord(tag=normalized_target, affected_assets=affected_assets)
 
 

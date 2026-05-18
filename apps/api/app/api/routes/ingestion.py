@@ -44,6 +44,7 @@ from apps.api.app.api.schemas import (
 
 router = APIRouter(prefix="/api/ingest")
 settings = get_settings()
+_bundle_fingerprint = bundle_fingerprint
 
 
 @router.post(

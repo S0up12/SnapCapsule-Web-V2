@@ -183,7 +183,7 @@ def test_get_stories_returns_metadata_activity_without_local_story_media(db_sess
     assert payload["total_story_items"] == 0
     assert payload["activity"]["spotlight_history_count"] == 1
     assert payload["activity"]["shared_story_count"] == 1
-    assert payload["activity"]["latest_story_date"] == "2026-03-23T09:30:00+00:00"
+    assert payload["activity"]["latest_story_date"] == "2026-03-23T09:30:00Z"
     assert payload["activity"]["spotlight_history"][0]["story_url"] == "https://story.snapchat.com/o/spotlight-1"
     assert payload["activity"]["spotlight_history"][0]["view_duration_seconds"] is None
     assert payload["activity"]["shared_story_activity"][0]["view_duration_seconds"] == 1.37
