@@ -85,6 +85,22 @@ http://localhost:3000
 
 The default Compose stack is the production-style install path used for local testing and Portainer. Only `web` publishes a host port; the API remains available through the same origin at `/api/*`, and health checks are available through `/health`.
 
+## ZimaOS / Portainer
+
+Use [docker-compose.zimaos.yml](C:/Users/Sammy/Documents/GitHub/SnapCapsule-Web-V2/docker-compose.zimaos.yml) for ZimaOS custom app imports or Portainer stacks that should run from prebuilt images instead of local `build:` steps.
+
+Important constraints:
+
+- Portainer Git stacks are a poor fit for this repo's source-build compose file. Portainer documents Git-based image builds as not fully implemented.
+- ZimaOS dashboard metadata comes from the `x-casaos` block, so importing the ZimaOS compose file through ZimaOS is the path that gives you the app icon and Web UI metadata.
+- The ZimaOS compose file expects published images. Set `SNAPCAPSULE_BACKEND_IMAGE` and `SNAPCAPSULE_WEB_IMAGE` first.
+
+Suggested flow:
+
+1. Copy [.env.zimaos.example](C:/Users/Sammy/Documents/GitHub/SnapCapsule-Web-V2/.env.zimaos.example) to your server and fill in the image references plus password.
+2. Deploy [docker-compose.zimaos.yml](C:/Users/Sammy/Documents/GitHub/SnapCapsule-Web-V2/docker-compose.zimaos.yml) with those environment values.
+3. If you want the app to appear on the ZimaOS dashboard, import it as a custom app in ZimaOS instead of creating it only as a Portainer-managed stack.
+
 Useful checks:
 
 ```bash

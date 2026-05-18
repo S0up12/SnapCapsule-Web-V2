@@ -1,0 +1,177 @@
+name: snapcapsule-web-zimaos
+
+x-backend-image: &backend-image
+  image: ${SNAPCAPSULE_BACKEND_IMAGE:-ghcr.io/replace-me/snapcapsule-backend:latest}
+
+x-web-image: &web-image
+  image: ${SNAPCAPSULE_WEB_IMAGE:-ghcr.io/replace-me/snapcapsule-web:latest}
+
+x-backend-environment: &backend-environment
+  SNAPCAPSULE_ENVIRONMENT: production
+  SNAPCAPSULE_DATABASE_HOST: db
+  SNAPCAPSULE_DATABASE_PORT: 5432
+  SNAPCAPSULE_DATABASE_NAME: ${POSTGRES_DB:-snapcapsule}
+  SNAPCAPSULE_DATABASE_USER: ${POSTGRES_USER:-snapcapsule}
+  SNAPCAPSULE_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-change-this-password}
+  SNAPCAPSULE_REDIS_URL: redis://redis:6379/0
+  SNAPCAPSULE_ALLOWED_ORIGINS: ${SNAPCAPSULE_ALLOWED_ORIGINS:-}
+  SNAPCAPSULE_RAW_MEDIA_DIR: /srv/snapcapsule/raw
+  SNAPCAPSULE_THUMBNAIL_DIR: /srv/snapcapsule/thumbnails
+  SNAPCAPSULE_INGEST_ROOT_DIR: /srv/snapcapsule/ingest
+
+x-media-volumes: &media-volumes
+  - type: bind
+    source: ${HOST_RAW_MEDIA_DIR:-/DATA/AppData/snapcapsule/raw}
+    target: /srv/snapcapsule/raw
+  - type: bind
+    source: ${HOST_THUMBNAIL_DIR:-/DATA/AppData/snapcapsule/thumbnails}
+    target: /srv/snapcapsule/thumbnails
+  - type: bind
+    source: ${HOST_INGEST_DIR:-/DATA/AppData/snapcapsule/ingest}
+    target: /srv/snapcapsule/ingest
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-snapcapsule}
+      POSTGRES_USER: ${POSTGRES_USER:-snapcapsule}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-snapcapsule} -d ${POSTGRES_DB:-snapcapsule}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${HOST_POSTGRES_DATA_DIR:-/DATA/AppData/snapcapsule/postgres}
+        target: /var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${HOST_REDIS_DATA_DIR:-/DATA/AppData/snapcapsule/redis}
+        target: /data
+
+  migrate:
+    <<: *backend-image
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *backend-environment
+    volumes: *media-volumes
+    restart: "no"
+
+  backend:
+    <<: *backend-image
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command:
+      [
+        "uvicorn",
+        "apps.api.app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--workers",
+        "${SNAPCAPSULE_API_WORKERS:-2}"
+      ]
+    environment:
+      <<: *backend-environment
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    volumes: *media-volumes
+
+  worker:
+    <<: *backend-image
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command:
+      [
+        "sh",
+        "-c",
+        "celery -A apps.worker.app.worker:celery_app worker --loglevel=INFO --concurrency=${WORKER_CONCURRENCY:-2} --queues=ingest,media"
+      ]
+    environment:
+      <<: *backend-environment
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    restart: unless-stopped
+    volumes: *media-volumes
+
+  web:
+    <<: *web-image
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - target: 80
+        published: ${WEBUI_PORT:-3000}
+        protocol: tcp
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: web
+  author: S0up12
+  category: Utilities
+  description:
+    en_us: Private Snapchat archive viewer for memories, chats, stories, and profile data.
+  developer: S0up12
+  icon: https://raw.githubusercontent.com/S0up12/SnapCapsule-Web-V2/main/apps/web/public/icon-192.png
+  index: /
+  port_map: ${WEBUI_PORT:-3000}
+  tagline:
+    en_us: Private Snapchat archive viewer.
+  title:
+    en_us: SnapCapsule
+  tips:
+    before_install:
+      en_us: |
+        This deploy file expects prebuilt backend and web images.
+
+        Set `SNAPCAPSULE_BACKEND_IMAGE` and `SNAPCAPSULE_WEB_IMAGE` to published image references before installing.
+
+        Use absolute host paths for `HOST_POSTGRES_DATA_DIR`, `HOST_REDIS_DATA_DIR`, `HOST_RAW_MEDIA_DIR`, `HOST_THUMBNAIL_DIR`, and `HOST_INGEST_DIR`.
+
+        Change `POSTGRES_PASSWORD` before first startup.
